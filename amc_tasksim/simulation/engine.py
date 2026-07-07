@@ -196,12 +196,27 @@ def simulate(
                     # Determine execution time for this job
                     if taskset.criticality[i] == "HI":
                         if fp > 0 and rng.random() < fp:
-                            hi_exec = max(1, taskset.C_hi[i]) if taskset.C_lo[i] >= taskset.C_hi[i] else max(1, int(rng.integers(taskset.C_lo[i], taskset.C_hi[i] + 1)))
+                            hi_lo = taskset.C_lo[i]
+                            hi_hi = taskset.C_hi[i]
+                            if hi_lo >= hi_hi:
+                                exec_time = hi_hi
+                            else:
+                                exec_time = max(1, int(rng.integers(hi_lo, hi_hi + 1)))
                         else:
-                            hi_exec = max(1, taskset.C_lo[i]) if taskset.BCET[i] >= taskset.C_lo[i] else max(1, int(rng.integers(taskset.BCET[i], taskset.C_lo[i] + 1)))
-                        remaining = hi_exec
+                            lo_lo = max(taskset.BCET[i], 1)
+                            lo_hi = taskset.C_lo[i]
+                            if lo_lo >= lo_hi:
+                                exec_time = lo_hi
+                            else:
+                                exec_time = max(1, int(rng.integers(lo_lo, lo_hi + 1)))
+                        remaining = exec_time
                     else:
-                        remaining = max(1, taskset.C_lo[i]) if taskset.BCET[i] >= taskset.C_lo[i] else max(1, int(rng.integers(taskset.BCET[i], taskset.C_lo[i] + 1)))
+                        lo_lo = max(taskset.BCET[i], 1)
+                        lo_hi = taskset.C_lo[i]
+                        if lo_lo >= lo_hi:
+                            remaining = lo_hi
+                        else:
+                            remaining = max(1, int(rng.integers(lo_lo, lo_hi + 1)))
 
                     job = Job(
                         task_id=i,
