@@ -46,6 +46,9 @@ class TaskSet:
     individually_infeasible_indices: list[int] = field(default_factory=list)
     aggregate_hi_utilisation: float = 0.0
 
+    def __len__(self) -> int:
+        return self.n
+
     @property
     def C_hi_array(self) -> np.ndarray:
         return np.array(self.C_hi, dtype=float)
@@ -110,7 +113,7 @@ def generate_taskset(
     # Step 2: per-task utilisation via DRS
     umax = np.ones(n)
     umin = np.zeros(n)
-    u = drs(n, U, umax=umax, umin=umin)
+    u = drs(n, U, umax=umax, umin=umin, rng=rng)
 
     # Step 3: periods — log-uniform
     log_min = math.log(period_range[0])
@@ -143,16 +146,33 @@ def generate_taskset(
                     infeasible_indices.append(i)
 
     elif hi_mode == "drs_independent":
-        # Two-level DRS for HI-criticality tasks
+        # Two-level DRS for HI-criticality tasks (per spec Section III-A):
+        # 1. Draw u(HI) for HI-criticality tasks summing to CF*CP*U
+        # 2. Use u(HI) as per-task max constraint for HI-criticality LO utilisation
+        # 3. Distribute remaining budget among LO-criticality tasks
+
+        # Step 1: draw u(HI)
         target_u_hi_hi = CF * CP * U
-        u_hi_max = drs(n_hi, target_u_hi_hi, umax=np.ones(n_hi), umin=np.zeros(n_hi))
-        # Use u_hi_max as constraint for HI tasks' LO utilisation
-        u_hi = drs(n_hi, CP * U, umax=u_hi_max, umin=np.zeros(n_hi))
-        u[:n_hi] = u_hi
-        # Recalculate C_lo from corrected utilisation
-        C_lo = np.round(u_hi * T[:n_hi]).astype(int)
-        BCET[:n_hi] = np.maximum(np.round(C_lo * bcet_fracs[:n_hi]).astype(int), 1)
-        # C_hi = CF * C_lo, capped at period
+        u_hi_max = drs(n_hi, target_u_hi_hi, umax=np.ones(n_hi), umin=np.zeros(n_hi), rng=rng)
+
+        # Step 2: draw u(LO) for HI-criticality tasks, constrained by u(HI)
+        u_hi_lo = drs(n_hi, CP * U, umax=u_hi_max, umin=np.zeros(n_hi), rng=rng)
+        u[:n_hi] = u_hi_lo
+
+        # Step 3: distribute remaining budget among LO-criticality tasks
+        remaining_U = U - np.sum(u_hi_lo)
+        if n_lo > 0 and remaining_U > 0:
+            u_lo_max = np.ones(n_lo)
+            u_lo = drs(n_lo, remaining_U, umax=u_lo_max, umin=np.zeros(n_lo), rng=rng)
+            u[n_hi:] = u_lo
+        elif n_lo > 0:
+            # Not enough budget — distribute equally among LO tasks
+            u[n_hi:] = remaining_U / n_lo
+
+        # Recalculate C_lo and BCET for ALL tasks from corrected u
+        C_lo = np.round(u * T).astype(int)
+        BCET = np.maximum(np.round(C_lo * bcet_fracs).astype(int), 1)
+        # C_hi = CF * C_lo for HI tasks, capped at period
         for i in range(n_hi):
             c_hi = min(round(CF * C_lo[i]), T[i])
             C_hi[i] = c_hi
@@ -195,6 +215,7 @@ def generate_taskset(
 def generate_ensemble(
     n_replicates: int,
     U: float,
+    rng_seed: int = 42,
     **kwargs,
 ) -> list[TaskSet]:
     """Generate an ensemble of task sets.
@@ -205,15 +226,14 @@ def generate_ensemble(
     Args:
         n_replicates: Number of task sets to generate.
         U: Target utilisation (shared across the ensemble).
+        rng_seed: Base seed for the ensemble.
         **kwargs: Passed through to generate_taskset.
 
     Returns:
         List of TaskSet objects.
     """
-    base_seed = int(hash((U, n_replicates)) % (2**31))
     task_sets: list[TaskSet] = []
     for i in range(n_replicates):
-        seed = base_seed + i
-        ts = generate_taskset(U=U, rng_seed=seed, **kwargs)
+        ts = generate_taskset(U=U, rng_seed=rng_seed + i, **kwargs)
         task_sets.append(ts)
     return task_sets
