@@ -20,7 +20,8 @@ from tqdm import tqdm
 from amc_tasksim.generation.taskset import generate_taskset, generate_ensemble
 from amc_tasksim.scheduling.amc_rtb import amc_rtb, is_nontrivial_amc_taskset
 from amc_tasksim.scheduling.priority import assign_deadline_monotonic
-from amc_tasksim.simulation.engine import simulate, SimulationResult, ModeChangeProtocol
+from amc_tasksim.simulation.engine import simulate, SimulationResult, ModeChangeProtocol, OriginalAMC
+from amc_tasksim.simulation.protocols import AMC_RH, AMC_RA
 
 
 def _default_output() -> str:
@@ -34,7 +35,7 @@ def run_sweep(
     hi_mode: str = "fixed_ratio",
     duration: int = 10**6,
     seed: int = 42,
-    mode_protocol: Optional[ModeChangeProtocol] = None,
+    mode_protocol: Optional[str] = None,
     output: Optional[str] = None,
     quick: bool = False,
     power_threshold: int = 100,
@@ -49,7 +50,8 @@ def run_sweep(
         hi_mode: HI-criticality utilisation mode.
         duration: Simulation duration per run.
         seed: Base random seed.
-        mode_protocol: Mode-change protocol (default: OriginalAMC).
+        mode_protocol: Protocol name ("original_amc", "amc_rh", "amc_ra")
+            or a ModeChangeProtocol instance (default: "original_amc").
         output: Output parquet file path.
         quick: If True, use 20 replicates instead of 1000.
         power_threshold: Minimum HI-trigger events for statistical power.
@@ -101,11 +103,24 @@ def run_sweep(
             results: list[SimulationResult] = []
             for i, ts in enumerate(ensemble):
                 assign_deadline_monotonic(ts)
+
+                # Determine protocol
+                protocol = mode_protocol
+                if isinstance(protocol, str):
+                    if protocol == "amc_rh":
+                        rt_result = amc_rtb(ts)
+                        protocol = AMC_RH(rt_result.r_lo)
+                    elif protocol == "amc_ra":
+                        rt_result = amc_rtb(ts)
+                        protocol = AMC_RA(rt_result.r_lo)
+                    else:
+                        protocol = OriginalAMC()
+
                 r = simulate(
                     ts,
                     duration=duration,
                     seed=seed + i,
-                    mode_protocol=mode_protocol,
+                    mode_protocol=protocol,
                     fp=fp,
                 )
                 results.append(r)
@@ -127,6 +142,7 @@ def run_sweep(
                     "N": N,
                     "FP": fp,
                     "hi_mode": hi_mode,
+                    "protocol": mode_protocol if isinstance(mode_protocol, str) else "original_amc",
                     "replicate_index": i,
                     "nid": r.nid,
                     "tid": r.tid,

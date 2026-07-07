@@ -58,6 +58,12 @@ def main() -> None:
         metavar=("START", "STOP", "STEP"),
         help="U sweep range (default: 0.05 0.95 0.05)",
     )
+    parser.add_argument(
+        "--protocol",
+        choices=["original_amc", "amc_rh", "amc_ra"],
+        default="original_amc",
+        help="Mode-change protocol (default: original_amc)",
+    )
     args = parser.parse_args()
 
     n_replicates = args.n_replicates if args.n_replicates else (20 if args.quick else 1000)
@@ -72,6 +78,7 @@ def main() -> None:
         n_workers=args.n_workers,
         N_values=args.n_values,
         U_range=args.U_range,
+        mode_protocol=args.protocol,
     )
 
     # Print summary
