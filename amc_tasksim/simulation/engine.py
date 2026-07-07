@@ -196,6 +196,7 @@ def simulate(
                     # Determine execution time for this job
                     if taskset.criticality[i] == "HI":
                         if fp > 0 and rng.random() < fp:
+                            result.hi_trigger_events += 1
                             hi_lo = taskset.C_lo[i]
                             hi_hi = taskset.C_hi[i]
                             if hi_lo >= hi_hi:
