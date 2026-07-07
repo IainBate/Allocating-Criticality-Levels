@@ -1,0 +1,382 @@
+# AMC Task-Set Generation & Simulation — Claude Code Build Plan
+
+Built to follow on from *Generating Utilization Vectors...* (DRS, RTSS 2020), *Analysis-Runtime
+Co-design for Adaptive Mixed Criticality Scheduling* (RTAS 2022), and *Compensating Adaptive Mixed
+Criticality Scheduling* (RTNS 2022).
+
+## How to use this
+
+1. Copy the three source PDFs into `docs/` in the new repo before starting — Claude Code can then
+   cite exact equations/sections directly rather than relying on a paraphrase.
+2. Paste the prompts below into Claude Code **one phase at a time**, in order. Each phase ends with
+   a "Definition of done" — don't move to the next phase until that's satisfied (tests green, example
+   output shown).
+3. Phases 1–8 give you a complete, working pipeline for the baseline AMC scheme. Phase 9 is an
+   optional extension that adds AMC-RH/AMC-RA as swappable scheduler variants, which lets you
+   reproduce/extend the AMC-RH paper's comparison using your own N-sweep.
+4. The numbers in the "Shared parameters" table are defaults, not requirements — adjust them in
+   Prompt 3 before running the full sweep.
+
+## Shared design decisions (review before starting)
+
+| Decision | Default | Rationale |
+|---|---|---|
+| HI/LO ratio | `Ci(HI) = 1.5 × Ci(LO)` per task (fixed ratio), **with a `--hi-mode` flag** to switch to DRS-independent control of total HI utilization | Fixed ratio is what you asked for; the independent mode avoids the correlation artefact the DRS paper flags in Baruah et al.'s original approach — worth comparing both |
+| Failure probability | `FP = 1/N`, N swept over `{10, 100, 1000, 10000, 100000}` (log-spaced, configurable) | "1 in N jobs" as a range, per your request |
+| Task set cardinality n | 20 | Paper convention |
+| Criticality proportion CP | 0.5 | Paper convention |
+| Utilization sweep U(LO) | 0.05 → 0.95, step 0.05 | Paper convention; generator should also report the analytic aggregate-feasibility ceiling for the current CP/CF (≈ 1/(CP·CF + (1−CP)); ≈0.8 for CP=0.5, CF=1.5) so you can see where task sets start becoming structurally infeasible |
+| Replicates | 1000 per (U, N) combination | As requested |
+| Simulation duration | 10⁶ ticks per run | As requested; engine is event-driven internally |
+| Periods | log-uniform, ratio 100 (paper convention), integer ticks | Configurable; semi-harmonic left as a later option |
+| Deadlines | `Di = Ti` (implicit) | Simplest starting point |
+| BCET | uniform 80–100% of Ci(LO) | Paper convention; can be disabled (BCET=Ci(LO)) |
+| Priority assignment | Deadline Monotonic | Optimal for implicit deadlines under single-criticality FPPS; Audsley OPA under AMC-rtb is a Phase 9 extension |
+| Mode-change protocol | Original AMC (enter on Ci(LO) overrun, exit on idle instant) | Baseline from the AMC-RH paper; pluggable |
+| Seeding | Deterministic seed derived from (U, N, hi_mode, replicate_index) | Full reproducibility |
+
+---
+
+## Phase 1 — Project scaffold
+
+```
+Set up a new Python research project called `amc-tasksim` for simulating Adaptive
+Mixed-Criticality (AMC) fixed-priority scheduling.
+
+- Python 3.11+, dependency management via pyproject.toml (uv or plain pip, your choice).
+- Core dependencies: numpy, pandas, matplotlib, pytest, tqdm, and joblib (or stdlib
+  multiprocessing) for parallel experiment execution.
+- Directory layout:
+    amc_tasksim/generation/    # DRS algorithm + task-set generator
+    amc_tasksim/scheduling/    # priority assignment + analytic schedulability tests
+    amc_tasksim/simulation/    # event-driven simulator core
+    amc_tasksim/experiments/   # sweep orchestration + result storage
+    amc_tasksim/analysis/      # plotting/summary statistics
+    tests/                     # pytest suite mirroring the package structure
+    docs/                      # I will place three reference PDFs here
+    results/                   # gitignored experiment output
+- README.md summarising the project goal: generate large-scale synthetic AMC task sets across
+  a utilisation sweep and a HI-criticality failure-probability sweep (FP = 1/N, N ranging over
+  several orders of magnitude), then simulate each for a fixed duration to empirically measure
+  degraded-mode behaviour (NiD, TiD, JNE, LDM, HDM).
+- Initialise git, commit this scaffold.
+
+Do not implement any algorithm logic yet — this is project setup only. When done, show me the
+directory tree and confirm `pytest` runs cleanly (even with zero tests collected).
+```
+
+**Definition of done:** repo exists, `pytest` runs, tree matches the layout above.
+
+---
+
+## Phase 2 — DRS core algorithm
+
+```
+Implement the Dirichlet-Rescale (DRS) algorithm in amc_tasksim/generation/drs.py.
+
+Read docs/DRSRTSS2020.pdf, Section III ("Dirichlet-Rescale Algorithm"), for the exact
+sub-functions: RMSS (rescale-matrix-to-standard-simplex), CtS (constraints-to-simplex), Rescale,
+SmallestSimplexRescale (SSR), and the top-level DRS(n, U, umax, umin) function (signature and
+9-step procedure given in that section). Implement each as a separate, testable function using
+numpy.
+
+Signature: drs(n: int, U: float, umax: np.ndarray | None = None, umin: np.ndarray | None = None,
+epsilon: float = 1e-4) -> np.ndarray
+- Default umax = ones(n), umin = zeros(n).
+- Validate: sum(umin) <= U <= sum(umax), and elementwise umax >= umin. Raise ValueError otherwise.
+- Handle the umin != 0 canonical-form reduction (transform to u'max = umax - umin, U' = U -
+  sum(umin), solve, add umin back) exactly as described in the paper.
+- If the floating-point divergence between sum(output) and U exceeds epsilon, retry with a fresh
+  initial point (as the paper specifies) rather than returning an invalid vector. Cap retries at
+  a sane limit and raise if exceeded.
+
+Add tests in tests/generation/test_drs.py:
+1. Output always sums to U within epsilon, for a range of n, U, and both symmetric and
+   asymmetric umax/umin.
+2. Every constraint (umin_i <= output_i <= umax_i) is respected.
+3. Equivalence check for the simplest case (umax=ones(n), umin=zeros(n)): draw 100,000 samples
+   from both drs(n, U) and a plain UUnifast(n, U) implementation (also add this as a small
+   reference function, from eq. 6 / Section II-C of the paper), and confirm the two empirical
+   distributions are not statistically distinguishable using a two-sample Kolmogorov-Smirnov
+   test on a scalar projection (e.g. density of points in a fixed number of reference simplices,
+   following the methodology in Section IV, Experiment D) — this both validates DRS and confirms
+   your UUnifast reference is correct.
+4. Convergence/performance sanity check: for n=50, U=0.5, umax=UUnifast(50,1), confirm the mean
+   number of rescale iterations stays under a few hundred and the call completes quickly.
+
+Show me the test output before moving on.
+```
+
+**Definition of done:** all DRS tests pass, including the DRS-vs-UUnifast equivalence check.
+
+---
+
+## Phase 3 — Task-set generator
+
+```
+Implement amc_tasksim/generation/taskset.py, building on drs() from Phase 2.
+
+A TaskSet dataclass with fields: n, criticality (array of "HI"/"LO" per task), T (periods, int
+ticks), D (deadlines, int ticks, = T by default), C_lo (execution time budgets in normal mode),
+C_hi (execution time budgets in degraded mode — only meaningful for HI-criticality tasks; for
+LO-criticality tasks this is unused in the baseline model), BCET (best-case execution times),
+priority (assigned later, Phase 4), and metadata (seed, target U, generation params).
+
+generate_taskset(n=20, CP=0.5, U=0.5, CF=1.5, N=10000, hi_mode="fixed_ratio",
+                  period_range=(100, 10000), bcet_fraction_range=(0.8, 1.0), rng_seed=...) -> TaskSet
+
+Steps:
+1. n_hi = round(CP * n); n_lo = n - n_hi. Assign the first n_hi tasks as HI-criticality
+   (order doesn't matter here, priority assignment is separate).
+2. Ui(LO) for all n tasks: drs(n, U, umax=ones(n)).
+3. Periods Ti: draw log-uniform in period_range (paper convention: ratio 100 between min and
+   max), round to nearest integer tick, enforce Ti >= 1. Di = Ti.
+4. Ci(LO) = round(Ui(LO) * Ti). BCET_i = round(Ci(LO) * uniform(*bcet_fraction_range)).
+5. Ci(HI) for HI-criticality tasks depends on hi_mode:
+   - "fixed_ratio" (default): Ci(HI) = round(CF * Ci(LO)). Cap at Ti (a task can't need more
+     than one period's worth) and flag+count any task where Ui(HI) = Ci(HI)/Ti > 1.0 as
+     "individually infeasible". Report the fraction of generated task sets containing at least
+     one individually-infeasible HI task — do not silently discard these, surface the statistic
+     (this mirrors a finding in the DRS paper: naive fixed-ratio generation produces a
+     substantial fraction of invalid task sets at higher utilisation).
+   - "drs_independent": generate a second DRS call analogous to the two-level MCS example in
+     docs/DRSRTSS2020.pdf Section I-A (equations 2–3): draw u(HI) for HI-criticality tasks
+     summing to a target U_HI_HI = CF * CP * U via drs(n_hi, U_HI_HI, umax=ones(n_hi)), then use
+     that as the per-task max constraint when drawing Ui(LO) in step 2 for the HI-criticality
+     tasks only (drs(n_hi, CP*U, umax=u(HI))), guaranteeing Ui(LO) <= Ui(HI) by construction
+     with no invalid task sets.
+6. Also report, per generated task set, the analytic aggregate feasibility check:
+   sum(Ui(HI) for HI-criticality tasks) <= 1.
+
+Add a generate_ensemble(n_replicates=1000, **kwargs) -> list[TaskSet] convenience function using
+the deterministic-seed scheme from the shared parameters table.
+
+Tests in tests/generation/test_taskset.py: utilisation sums correct, constraints respected in
+both hi_modes, individually-infeasible fraction is reported and non-negative, reproducibility
+(same seed -> identical task set).
+```
+
+**Definition of done:** generator runs for both `hi_mode` values across a spread of U values,
+tests pass, and the "individually infeasible" diagnostic is visibly non-trivial at high U under
+`fixed_ratio` (demonstrating why the flag matters).
+
+---
+
+## Phase 4 — Priority assignment & analytic schedulability filter
+
+```
+Implement amc_tasksim/scheduling/priority.py and amc_tasksim/scheduling/amc_rtb.py.
+
+priority.py: assign_deadline_monotonic(taskset) -> sets taskset.priority (lower Di = higher
+priority; ties broken by task index). This is the default.
+
+amc_rtb.py: implement the AMC-rtb schedulability test from docs/AMCRRTAS2022.pdf Section IV-A
+(equations 1–2), or equivalently docs/CAMCRTNS2022.pdf Section 4.1 for the general form:
+- Ri(LO) via standard fixed-priority response-time analysis (fixed-point iteration on eq. 1).
+- Ri(HI) via eq. 2, accounting for HI-criticality interference at Cj(HI) and LO-criticality
+  interference capped at Ri(LO).
+Return per-task response times and an overall schedulable: bool.
+
+Add a filter used by the generator (optional, applied in the experiment orchestration phase,
+not baked into generate_taskset itself): keep only task sets that are (a) schedulable under
+AMC-rtb, and (b) NOT schedulable under plain fixed-priority analysis assuming every task
+executes at max(Ci(LO), Ci(HI)) — i.e. the task set genuinely needs the mixed-criticality
+scheme to be viable, following the methodology in docs/AMCRRTAS2022.pdf Section V-C. Implement
+this as amc_tasksim/scheduling/filters.py: is_nontrivial_amc_taskset(taskset) -> bool.
+
+Tests: reproduce the worked 3-task example from docs/AMCRRTAS2022.pdf Appendix A by hand
+(tau1: Clo=1,T=2; tau2: Clo=1,Chi=5,T=10; tau3: Clo=Chi=4,T=100,D=18) and confirm your AMC-rtb
+implementation gives R3(LO)=10 and R3(HI)=19 (i.e. correctly reports tau3 as unschedulable under
+AMC-rtb) — this is a known result from the paper and a strong regression check.
+```
+
+**Definition of done:** the Appendix-A worked example reproduces R3(LO)=10, R3(HI)=19 exactly.
+
+---
+
+## Phase 5 — Event-driven simulator core
+
+```
+Implement amc_tasksim/simulation/engine.py: a discrete-event (not tick-by-tick) simulator for
+fixed-priority preemptive scheduling of a single TaskSet on one core, running for a specified
+duration in integer ticks (default 10**6).
+
+Per-job execution time model (this is the stochastic core, distinct from the paper's fixed
+default — here FP = 1/N is swept):
+- LO-criticality task job: execution time ~ uniform(BCET_i, Ci(LO)), always completes within
+  Ci(LO) by construction.
+- HI-criticality task job: with probability FP = 1/N, exhibits HI-criticality behaviour
+  (execution time ~ uniform(Ci(LO), Ci(HI))); otherwise behaves like a LO job
+  (execution time ~ uniform(BCET_i, Ci(LO))).
+
+Mode-change protocol (baseline = original AMC, from docs/AMCRRTAS2022.pdf Section III):
+- Normal mode: all tasks release jobs.
+- Enter degraded mode: the instant any active HI-criticality job has executed for Ci(LO)
+  without completing.
+- Degraded mode: new releases of LO-criticality tasks are dropped (not queued, not executed) —
+  count each as a JNE event. HI-criticality jobs continue normally.
+- Exit degraded mode: on the next idle instant (no active jobs of any task).
+
+Implement the mode-change trigger as a small strategy interface (e.g. a ModeChangeProtocol
+abstract base class with on_job_progress/on_completion/on_idle hooks) even though only the
+original-AMC variant is implemented now — this is so Phase 9 can add AMC-RH/AMC-RA later
+without touching the core engine.
+
+As a defensive check (not expected to trigger given the execution-time model above, but a good
+guard against generation bugs): if any job's realised execution time exceeds its enforced budget
+(Ci(HI) for HI-criticality tasks, Ci(LO) for LO-criticality tasks in normal mode), abort the job
+and log a warning rather than silently continuing.
+
+Metrics collected per run, matching docs/AMCRRTAS2022.pdf Section V-A:
+- HDM: count of HI-criticality deadline misses (should always be 0 for a schedulable task set —
+  treat any non-zero HDM as a flagged anomaly in the output, not just a number).
+- JNE: count of LO-criticality jobs dropped in degraded mode.
+- LDM: count of LO-criticality jobs that executed but missed their deadline.
+- TiD: total time spent in degraded mode, as a fraction of simulation duration.
+- NiD: number of times degraded mode was entered.
+- Additionally: total HI-criticality job releases per task and total HI-behaviour "trigger"
+  events observed (jobs that actually exceeded Ci(LO)) — needed later to check whether a given
+  (U, N) combination produced enough rare events to be statistically meaningful.
+
+For testing/validation purposes, support an optional deterministic override where job release
+times are supplied explicitly rather than generated from periods/randomness (needed for Phase 6).
+
+Function signature: simulate(taskset, duration=10**6, seed=..., mode_protocol=OriginalAMC()) -> SimulationResult (a dataclass with the metrics above).
+```
+
+**Definition of done:** engine runs on a small hand-built task set without errors, metrics
+dataclass populates correctly, defensive budget-overrun check exists and is tested.
+
+---
+
+## Phase 6 — Validation suite
+
+```
+Add tests/simulation/test_validation.py using the deterministic release-time override from
+Phase 5.
+
+Reproduce the exact scenario in docs/AMCRRTAS2022.pdf Appendix A / Figure 13 ("original AMC
+scheme" half of the figure): tau1 (Clo=1,T=2,D=2), tau2 (Clo=1,Chi=5,T=10,D=10), tau3
+(Clo=Chi=4,T=100,D=18), with tau2's job scripted to release at t=6 (the worst-case offset
+identified in the paper) and forced to exhibit full HI-criticality behaviour (execute for
+Chi=5). Confirm the simulator's trace matches the paper's description: degraded mode entered at
+t=8 (when tau2 has executed 1 tick — its Clo — without completing), and the resulting response
+time / completion behaviour for tau3 matches the paper's worked values.
+
+Also add general sanity tests independent of any specific paper example:
+- A task set with FP=0 (N -> infinity) never enters degraded mode (NiD=0, TiD=0, JNE=0) across a
+  long random run.
+- A task set where every task's Ci(HI)=Ci(LO) (CF=1.0) behaves identically to single-criticality
+  FPPS — degraded mode may be entered/exited per the trigger definition but JNE/LDM should be
+  driven purely by whether the (now-single) execution time model causes overruns, not by any
+  criticality distinction.
+- Utilisation conservation: for a large ensemble, the empirical fraction of ticks each task
+  spends executing (in the schedulable subset) is consistent with its assigned Ui(LO) recorded
+  at generation time.
+
+Show me all test output.
+```
+
+**Definition of done:** the Appendix-A scripted scenario reproduces the paper's trace; all
+sanity tests pass.
+
+---
+
+## Phase 7 — Experiment orchestration (the sweep)
+
+```
+Implement amc_tasksim/experiments/sweep.py to run the full experiment:
+
+- U in [0.05, 0.10, ..., 0.95] (configurable)
+- N in [10, 100, 1000, 10000, 100000] (configurable, log-spaced)
+- 1000 replicate task sets per (U, N) combination, generated once per U (task-set generation
+  does not depend on N — only the simulation's execution-time model does) and then simulated
+  once per N value, to avoid regenerating task sets redundantly. Structure the code so each
+  (taskset_replicate, U) is generated once and reused across all N values in that sweep.
+- hi_mode as a top-level CLI/config flag so the whole sweep can be re-run under both
+  "fixed_ratio" and "drs_independent" for comparison.
+- Parallelise across replicates (not across ticks within a single simulation run) using
+  multiprocessing/joblib, since the simulator itself is inherently sequential per task set.
+  Use a progress bar (tqdm) at the level of (U, N) combinations.
+- Before running the full 1000-replicate sweep, provide a --quick flag that runs e.g. 20
+  replicates so the pipeline can be smoke-tested end-to-end quickly.
+- Store results as a single tidy pandas DataFrame / parquet file with one row per
+  (U, N, hi_mode, replicate_index) containing: all generation parameters, HDM, JNE, LDM, TiD,
+  NiD, total HI-releases, total HI-trigger-events, and whether the task set passed the
+  is_nontrivial_amc_taskset filter from Phase 4 (store this as a column rather than filtering
+  silently, so both filtered and unfiltered analyses are possible later).
+- IMPORTANT — statistical power check: after each (U, N) combination completes, compute and log
+  the total number of HI-trigger events observed across all 1000 replicates. If this falls below
+  some threshold (e.g. 100 events, configurable), print a clear warning that NiD/TiD/JNE
+  estimates for this (U, N) cell may be unreliable due to too few rare-event occurrences given
+  the simulation duration — do not silently report a smooth-looking but statistically vacuous
+  average.
+
+Run the --quick version end-to-end and show me a summary (row count, a few example rows, and
+any statistical-power warnings triggered).
+```
+
+**Definition of done:** `--quick` sweep completes, produces a results file, and the
+statistical-power warning logic demonstrably triggers for at least the largest N value (this is
+expected and fine — it tells you where you need either longer duration or more replicates).
+
+---
+
+## Phase 8 — Analysis & plotting
+
+```
+Implement amc_tasksim/analysis/plots.py, reading the results file from Phase 7.
+
+Reproduce plots in the style of docs/AMCRRTAS2022.pdf Figures 1-3 (box-and-whisker: min,
+5-percentile, 25-percentile/median/75-percentile box, 95-percentile, max) for NiD(%), TiD(%),
+and JNE(%)+LDM(%), each as a function of U, faceted/coloured by N. Also produce:
+- A heatmap of "Success Ratio" (fraction of task sets in each (U,N) cell with HDM=0, i.e. no
+  high-criticality deadline misses — this should be ~100% everywhere if generation/analysis are
+  correct, so a heatmap surfaces bugs quickly).
+- A heatmap of the statistical-power diagnostic (total HI-trigger events per cell) so low-power
+  regions are visually obvious.
+- A comparison plot overlaying hi_mode="fixed_ratio" vs "drs_independent" results for the same
+  (U, N) grid, on the JNE+LDM metric, to show the practical effect of the two generation
+  strategies.
+
+Save all figures to results/figures/. Provide a short markdown summary
+(results/SUMMARY.md) written by you (Claude Code) after inspecting the actual output, describing
+what the plots show and flagging anything that looks anomalous (e.g. non-zero HDM, low
+statistical power regions, unexpectedly high individually-infeasible fractions under
+fixed_ratio).
+```
+
+**Definition of done:** figures generated from the `--quick` run's output, `SUMMARY.md` written
+and sensible.
+
+---
+
+## Phase 9 (optional, extension) — Pluggable scheduler variants: AMC-RH / AMC-RA
+
+```
+Extend the ModeChangeProtocol interface from Phase 5 with two additional variants, from
+docs/AMCRRTAS2022.pdf Section IV:
+
+- AMC-RH: enter degraded mode when an active HI-criticality job of task tau_i reaches Ri(LO)
+  (its LO-criticality response time, computed in Phase 4) since the start of the priority
+  level-i busy period in which it was released (not since its own release, and not on raw
+  Ci(LO) execution). Exit degraded mode as soon as there is no such active HI-criticality job
+  still past its Ri(LO) marker.
+- AMC-RA: same entry trigger as AMC-RH, but exit only on an idle instant (as in the original
+  AMC scheme).
+
+This requires tracking, per active job, the start time of its priority level-i busy period — see
+Appendix B of docs/AMCRRTAS2022.pdf for the O(1)-per-release bookkeeping approach (inherit busy-
+period start time from the next-higher-priority active task in the run-queue) and the expiry-
+queue mechanism for triggering mode-change transitions.
+
+Re-run the Phase 7 sweep (at least --quick scale) with all three protocols (original AMC,
+AMC-RH, AMC-RA) and confirm qualitatively that AMC-RH/AMC-RA reduce NiD, TiD, and JNE+LDM
+relative to original AMC, consistent with Table I of docs/AMCRRTAS2022.pdf (AMC-RH reducing
+JNE+LDM to roughly 2.5% of the original AMC value for semi-harmonic periods) — exact
+reproduction isn't the goal since your task model and duration differ, but the direction and
+rough magnitude of the effect should match.
+```
+
+**Definition of done:** all three protocols runnable through the same sweep infrastructure;
+AMC-RH shows a clear, large reduction in JNE+LDM relative to original AMC in your own data.

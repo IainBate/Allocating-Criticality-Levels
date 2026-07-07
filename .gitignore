@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+.venv/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Jupyter
+.ipynb_checkpoints/
+
+# Results (experiment output)
+results/*.parquet
+results/*.csv
+results/figures/
+results/SUMMARY.md
+
+# uv
+uv.lock
+
+# OS
+.DS_Store
