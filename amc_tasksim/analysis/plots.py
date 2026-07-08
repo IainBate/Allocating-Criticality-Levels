@@ -89,9 +89,9 @@ def _plot_metric_boxplot(
     fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharey=True)
 
     # Subsample for plotting (too many points otherwise)
-    plot_df = df.groupby(["U", "N", metric]).size().reset_index(name="count").sample(
-        500, random_state=42
-    )
+    grouped = df.groupby(["U", "N", metric]).size().reset_index(name="count")
+    n_samples = min(500, len(grouped))
+    plot_df = grouped.sample(n_samples, random_state=42, replace=len(grouped) < n_samples)
 
     # Get unique N values
     n_values = sorted(df["N"].unique())
