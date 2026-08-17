@@ -488,6 +488,8 @@ def simulate(
                 result.nid += 1
                 degraded_start = now
                 entry = None
+                if trace is not None:
+                    trace.append((now, "enter_degraded", -1))
                 # Re-select: entering degraded mode does not change the queue,
                 # but the protocol may now want a different trigger time.
 
