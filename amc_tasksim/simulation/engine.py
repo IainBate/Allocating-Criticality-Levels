@@ -418,6 +418,26 @@ def simulate(
             if trace is not None:
                 trace.append((now, "exit_degraded", -1))
 
+        # --- enter degraded mode ----------------------------------------------
+        # Checked before the releases at `now`: the trigger depends only on
+        # execution accrued strictly before `now`, and a job released at the
+        # instant of the transition is released into degraded mode. This is what
+        # Figure 13 of the AMC-RH paper shows for the release of tau1 at t=8.
+        def enter_if_triggered() -> None:
+            nonlocal degraded_start
+            if state.mode != "normal":
+                return
+            state.running = active[0] if active else None
+            e = mode_protocol.entry_time(state)
+            if e is not None and e <= now:
+                state.mode = "degraded"
+                result.nid += 1
+                degraded_start = now
+                if trace is not None:
+                    trace.append((now, "enter_degraded", -1))
+
+        enter_if_triggered()
+
         # --- releases at `now` ------------------------------------------------
         for i in release_order:
             if next_release[i] > now:
