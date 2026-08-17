@@ -469,6 +469,8 @@ def simulate(
                         idx += 1
                     job.busy_start = now if idx == 0 else active[idx - 1].busy_start
                     active.insert(idx, job)
+                    if trace is not None:
+                        trace.append((now, "release", i))
                 # exec_time == 0 (a task whose C_i(LO) rounded to zero) occupies
                 # no processor time; it is counted as released and completes at
                 # its release instant.
