@@ -451,16 +451,22 @@ def simulate(
             else:
                 result.lo_releases_per_task[i] += 1
 
+            # Both draws happen for every release, including one that is about
+            # to be abandoned, so that the random stream depends only on the
+            # release sequence. That keeps runs of the same task set and seed
+            # under different protocols a precise like-for-like comparison
+            # (Section V-D of the AMC-RH paper).
+            hi_behaviour = bool(crit == "HI" and fp > 0 and rng.random() < fp)
+            exec_time = _draw_exec_time(rng, taskset, i, hi_behaviour, exec_time_mode)
+
             if state.mode == "degraded" and crit == "LO":
                 # Abandoned on release: not queued, not executed.
                 result.jne += 1
                 if trace is not None:
                     trace.append((now, "drop", i))
             else:
-                hi_behaviour = bool(crit == "HI" and fp > 0 and rng.random() < fp)
                 if hi_behaviour:
                     result.hi_trigger_events += 1
-                exec_time = _draw_exec_time(rng, taskset, i, hi_behaviour, exec_time_mode)
                 if exec_time > 0:
                     job = Job(
                         task_id=i,
