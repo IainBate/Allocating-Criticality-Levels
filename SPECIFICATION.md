@@ -326,17 +326,23 @@ class ModeChangeProtocol(ABC):
 If any job's realised execution time exceeds its enforced budget
 (C_hi for HI tasks, C_lo for LO tasks in normal mode), abort the job and log a warning.
 
-### Testing Hook
+### Testing Hooks
 
-Support optional `release_times: list[int | None]` for explicit release times (needed for
-Phase 6 validation).
+- `release_offsets: list[int | None]` — per-task phase of the first release
+  (default 0 for every task, a synchronous arrival). Subsequent releases are
+  strictly periodic.
+- `exec_time_mode: "random" | "wcet"` — `"wcet"` makes every job execute exactly
+  its budget, so the papers' worked scenarios can be reproduced deterministically.
+- `trace: list | None` — when given, receives `(time, event, task_id)` tuples for
+  releases, drops, completions, deadline misses and mode changes.
 
 **Function signature:**
 
 ```python
 simulate(taskset, duration=10**6, seed=None,
          mode_protocol=OriginalAMC(), fp=1e-4,
-         release_times=None) -> SimulationResult
+         release_offsets=None, exec_time_mode="random",
+         trace=None) -> SimulationResult
 ```
 
 **Definition of done:** engine runs on a small hand-built task set without errors, metrics
