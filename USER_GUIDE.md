@@ -163,7 +163,9 @@ print(f"NiD={result.nid}, TiD={result.tid:.4f}, "
 
 1. **Event-driven simulation** — the engine jumps between events (releases, completions) rather than iterating tick by tick. This makes 10^6-tick simulations tractable.
 
-2. **Per-job execution time** — each job draws its execution time once at release from `uniform(BCET, C_lo)` (LO mode) or `uniform(C_lo, C_hi)` (HI mode). The time is not resampled each tick.
+2. **Per-job execution time** — each job draws its execution time once at release from `uniform(BCET, C_lo)` (LO mode) or `uniform(C_lo, C_hi)` (HI mode). The time is not resampled each tick. Both draws happen for every release, including one about to be abandoned in degraded mode, so the same task set and seed produce an identical release sequence under every protocol — the like-for-like comparison the papers rely on.
+
+   Pass `exec_time_mode="wcet"` to make every job execute exactly its budget, which reproduces the papers' worked scenarios deterministically, and `trace=[]` to collect a tick-by-tick event log.
 
 3. **Deterministic seeding** — the same `(U, n_replicates, rng_seed)` always produces the same ensemble. Seeds are derived from `(U, replicate_index)`.
 
