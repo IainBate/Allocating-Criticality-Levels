@@ -29,8 +29,8 @@ class ResponseTimeResult:
         overall_schedulable: True if all tasks are schedulable.
     """
 
-    r_lo: list[float] = field(default_factory=list)
-    r_hi: list[float] = field(default_factory=list)
+    r_lo: list[int] = field(default_factory=list)
+    r_hi: list[int] = field(default_factory=list)
     schedulable_lo: list[bool] = field(default_factory=list)
     schedulable_hi: list[bool] = field(default_factory=list)
     overall_schedulable: bool = False
