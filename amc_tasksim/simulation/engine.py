@@ -392,6 +392,26 @@ def simulate(
     seq = 0
     degraded_start = -1
 
+    def enter_if_triggered(now: int) -> None:
+        """Enter degraded mode if the protocol's trigger condition already holds.
+
+        Called before the releases at `now`, because the trigger depends only on
+        execution accrued strictly before `now` and a job released at the instant
+        of the transition is released into degraded mode. This is what Figure 13
+        of the AMC-RH paper shows for the release of tau1 at t=8.
+        """
+        nonlocal degraded_start
+        if state.mode != "normal":
+            return
+        state.running = active[0] if active else None
+        e = mode_protocol.entry_time(state)
+        if e is not None and e <= now:
+            state.mode = "degraded"
+            result.nid += 1
+            degraded_start = now
+            if trace is not None:
+                trace.append((now, "enter_degraded", -1))
+
     while state.time < duration:
         now = state.time
 
