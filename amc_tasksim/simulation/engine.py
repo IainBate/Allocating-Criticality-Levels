@@ -330,6 +330,7 @@ def simulate(
     fp: float = 1e-4,
     release_offsets: Optional[list[Optional[int]]] = None,
     exec_time_mode: ExecTimeMode = "random",
+    trace: Optional[list[tuple[int, str, int]]] = None,
 ) -> SimulationResult:
     """Simulate a task set under fixed-priority preemptive scheduling.
 
