@@ -11,10 +11,19 @@ comparison (the "non-trivial AMC" filter from the spec).
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 from typing import Optional
 
 from amc_tasksim.generation.taskset import TaskSet
+
+
+def _warn_no_convergence(task_index: int, quantity: str, max_iterations: int) -> None:
+    warnings.warn(
+        f"{quantity} for task {task_index} did not converge in {max_iterations} "
+        f"iterations and did not exceed its deadline; result may be inaccurate",
+        stacklevel=3,
+    )
 
 
 @dataclass
