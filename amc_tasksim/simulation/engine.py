@@ -356,6 +356,9 @@ def simulate(
         exec_time_mode: "random" draws execution times as the paper describes;
             "wcet" makes every job execute exactly its budget, which is used to
             reproduce the paper's worked scenarios deterministically.
+        trace: If given, ``(time, event, task_id)`` tuples are appended for each
+            release, drop, completion, deadline miss and mode change. Intended
+            for validating scripted scenarios, not for long runs.
 
     Returns:
         A :class:`SimulationResult`.
