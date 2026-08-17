@@ -491,6 +491,12 @@ def simulate(
                     active.insert(idx, job)
                     if trace is not None:
                         trace.append((now, "release", i))
+                    if crit == "HI":
+                        # A HI job that inherits a busy period already longer
+                        # than R_i(LO) is past its trigger the moment it is
+                        # queued, so lower-priority releases at this same
+                        # instant must see degraded mode.
+                        enter_if_triggered()
                 # exec_time == 0 (a task whose C_i(LO) rounded to zero) occupies
                 # no processor time; it is counted as released and completes at
                 # its release instant.
