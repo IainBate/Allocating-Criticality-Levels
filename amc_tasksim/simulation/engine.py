@@ -431,6 +431,8 @@ def simulate(
             if state.mode == "degraded" and crit == "LO":
                 # Abandoned on release: not queued, not executed.
                 result.jne += 1
+                if trace is not None:
+                    trace.append((now, "drop", i))
             else:
                 hi_behaviour = bool(crit == "HI" and fp > 0 and rng.random() < fp)
                 if hi_behaviour:
