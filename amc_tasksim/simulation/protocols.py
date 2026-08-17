@@ -1,128 +1,40 @@
-"""AMC-RH and AMC-RA mode-change protocols for AMC scheduling.
+"""Mode-change protocols for AMC scheduling.
 
-These extend the OriginalAMC protocol with analysis-runtime co-design
-trigger conditions from the AMC-RH paper (RTAS 2022).
+The protocol classes themselves live in :mod:`amc_tasksim.simulation.engine`,
+alongside the scheduler state they operate on. This module re-exports them so
+that ``from amc_tasksim.simulation.protocols import AMC_RH, AMC_RA`` keeps
+working, and documents the three schemes in one place.
 
-AMC-RH:
-  Enter degraded mode: when an active HI-criticality job tau_i reaches
-  R_i(LO) from the start of the priority level-i busy period in which
-  it was released.
-  Exit degraded mode: when there is no active HI-criticality job that
-  has reached R_i(LO) from its busy period start.
+===============  ==========================================  ==========================================
+Scheme           Enter degraded mode                         Exit degraded mode
+===============  ==========================================  ==========================================
+OriginalAMC      a HI job has executed for C_i(LO) without   idle instant
+                 signalling completion
+AMC-RA           an active HI job reaches R_i(LO) after the  idle instant
+                 start of its priority level-i busy period
+AMC-RH           as AMC-RA                                   a HI job completes and no active HI job
+                                                             has reached R_k(LO) from its busy period
+===============  ==========================================  ==========================================
 
-AMC-RA:
-  Enter degraded mode: same as AMC-RH.
-  Exit degraded mode: on an idle instant (as in original AMC).
+AMC-RH and AMC-RA are specifications S1-S5 of "Analysis-Runtime Co-design for
+Adaptive Mixed-Criticality Scheduling" (RTAS 2022), Section IV-B. Both take the
+per-task R_i(LO) values produced by :func:`amc_tasksim.scheduling.amc_rtb.amc_rtb`.
 """
 
 from __future__ import annotations
 
-from dataclasses import dataclass, field
-from typing import Optional
+from amc_tasksim.simulation.engine import (
+    AMC_RA,
+    AMC_RH,
+    ModeChangeProtocol,
+    OriginalAMC,
+    SchedulerState,
+)
 
-import numpy as np
-
-from amc_tasksim.generation.taskset import TaskSet
-from amc_tasksim.scheduling.amc_rtb import amc_rtb
-from amc_tasksim.simulation.engine import Job, ModeChangeProtocol
-
-
-@dataclass
-class _BusyPeriodState:
-    """Per-task busy period tracking for O(1) AMC-RH/AMC-RA bookkeeping.
-
-    Attributes:
-        busy_start: Start time of the current priority level-i busy period
-            for this task. 0 means not currently active.
-        busy_remaining: Remaining execution time in the current busy period.
-    """
-
-    busy_start: float = 0.0
-    busy_remaining: float = 0.0
-
-
-class AMC_RH(ModeChangeProtocol):
-    """AMC-RH mode-change protocol.
-
-    Enter degraded mode: when an active HI-criticality job tau_i reaches
-    R_i(LO) from the start of the priority level-i busy period in which
-    it was released.
-
-    Exit degraded mode: when there is no active HI-criticality job that
-    has reached R_i(LO) from its busy period start.
-    """
-
-    def __init__(self, r_lo: list[float]):
-        """Initialize with precomputed Ri(LO) values.
-
-        Args:
-            r_lo: Per-task LO-criticality response times from AMC-rtb.
-        """
-        self.r_lo = r_lo
-
-    def check_enter_degraded(
-        self,
-        active_jobs: list[Job],
-        current_time: int,
-    ) -> bool:
-        for job in active_jobs:
-            if job.criticality == "HI" and not job.completed and not job.dropped:
-                executed = job.c_hi - job.remaining
-                r_lo_i = self.r_lo[job.task_id]
-                if executed >= r_lo_i:
-                    return True
-        return False
-
-    def check_exit_degraded(
-        self,
-        active_jobs: list[Job],
-        current_time: int,
-    ) -> bool:
-        """Exit degraded mode when no active HI-criticality job has
-        reached R_i(LO) from its busy period start."""
-        for job in active_jobs:
-            if job.criticality == "HI" and not job.completed and not job.dropped:
-                executed = job.c_hi - job.remaining
-                r_lo_i = self.r_lo[job.task_id]
-                if executed >= r_lo_i:
-                    return False
-        return True
-
-
-class AMC_RA(ModeChangeProtocol):
-    """AMC-RA mode-change protocol.
-
-    Enter degraded mode: same as AMC-RH (based on R_i(LO) from busy
-    period start).
-
-    Exit degraded mode: on an idle instant (as in original AMC).
-    """
-
-    def __init__(self, r_lo: list[float]):
-        """Initialize with precomputed Ri(LO) values.
-
-        Args:
-            r_lo: Per-task LO-criticality response times from AMC-rtb.
-        """
-        self.r_lo = r_lo
-
-    def check_enter_degraded(
-        self,
-        active_jobs: list[Job],
-        current_time: int,
-    ) -> bool:
-        for job in active_jobs:
-            if job.criticality == "HI" and not job.completed and not job.dropped:
-                executed = job.c_hi - job.remaining
-                r_lo_i = self.r_lo[job.task_id]
-                if executed >= r_lo_i:
-                    return True
-        return False
-
-    def check_exit_degraded(
-        self,
-        active_jobs: list[Job],
-        current_time: int,
-    ) -> bool:
-        """Exit degraded mode on idle instant (same as OriginalAMC)."""
-        return len(active_jobs) == 0
+__all__ = [
+    "AMC_RA",
+    "AMC_RH",
+    "ModeChangeProtocol",
+    "OriginalAMC",
+    "SchedulerState",
+]
