@@ -505,19 +505,8 @@ def simulate(
         # --- select the running job -------------------------------------------
         state.running = active[0] if active else None
 
-        # --- enter degraded mode ----------------------------------------------
-        entry = None
-        if state.mode == "normal":
-            entry = mode_protocol.entry_time(state)
-            if entry is not None and entry <= now:
-                state.mode = "degraded"
-                result.nid += 1
-                degraded_start = now
-                entry = None
-                if trace is not None:
-                    trace.append((now, "enter_degraded", -1))
-                # Re-select: entering degraded mode does not change the queue,
-                # but the protocol may now want a different trigger time.
+        # --- the trigger instant is itself an event ----------------------------
+        entry = mode_protocol.entry_time(state) if state.mode == "normal" else None
 
         # --- next event --------------------------------------------------------
         next_t = duration
