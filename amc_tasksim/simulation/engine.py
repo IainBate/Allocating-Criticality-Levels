@@ -405,6 +405,8 @@ def simulate(
                     else:
                         result.ldm += 1
                     active.remove(job)
+                    if trace is not None:
+                        trace.append((now, "deadline_miss", job.task_id))
 
         # --- leave degraded mode ---------------------------------------------
         # Evaluated before releases at `now`, because an idle instant is defined
@@ -413,6 +415,8 @@ def simulate(
             state.mode = "normal"
             result.degraded_ticks += now - degraded_start
             degraded_start = -1
+            if trace is not None:
+                trace.append((now, "exit_degraded", -1))
 
         # --- releases at `now` ------------------------------------------------
         for i in release_order:
