@@ -195,4 +195,4 @@ results/            Experiment output (gitignored)
 
 **ImportError on parquet** — install pyarrow: `uv pip install pyarrow`.
 
-**Tests fail after updating code** — run `uv run pytest` to verify. The full suite is 157 tests covering DRS correctness, task-set generation, AMC-rtb (with the paper's Appendix A worked example), simulator validation, and protocol behaviour.
+**Tests fail after updating code** — run `uv run pytest` to verify. The full suite is 169 tests covering DRS correctness, task-set generation, AMC-rtb (with the paper's Appendix A worked example), the simulator (including the Figure 13 schedule tick by tick), and the three mode-change protocols.
