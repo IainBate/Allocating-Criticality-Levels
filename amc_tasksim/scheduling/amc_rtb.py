@@ -174,16 +174,17 @@ def _fp_response_time_max(taskset: TaskSet, i: int) -> float:
 
     w = c_max(i)
     for _ in range(10000):
-        interference = 0.0
+        interference = 0
         for j in range(len(T)):
             if priority[j] >= priority[i]:
                 continue
-            num = max(0, math.ceil(w / T[j]))
-            interference += num * c_max(j)
+            interference += _num_jobs(T[j], w) * c_max(j)
         w_new = c_max(i) + interference
-        if w_new == w or w_new > D[i] * 2:
+        if w_new == w:
             break
         w = w_new
+        if w > D[i]:
+            break
     return w
 
 
