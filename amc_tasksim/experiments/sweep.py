@@ -84,6 +84,8 @@ def run_sweep(
     total_combos = len(U_values) * len(N_values)
     combo_count = 0
 
+    protocol_name = mode_protocol if isinstance(mode_protocol, str) else "original_amc"
+
     for U in U_values:
         # Generate task sets for this U (once, reused across all N)
         print(f"\nGenerating {n_replicates} task sets for U={U:.2f} ...")
@@ -94,6 +96,14 @@ def run_sweep(
             rng_seed=seed,
         )
 
+        # Analysis depends only on the task set, so run it once per replicate
+        # rather than once per (replicate, N).
+        analyses = []
+        for ts in ensemble:
+            assign_deadline_monotonic(ts)
+            rt = amc_rtb(ts)
+            analyses.append((rt, is_nontrivial_amc_taskset(ts)))
+
         for N in N_values:
             combo_count += 1
             fp = 1.0 / N
@@ -102,19 +112,13 @@ def run_sweep(
             # Simulate each replicate with this N
             results: list[SimulationResult] = []
             for i, ts in enumerate(ensemble):
-                assign_deadline_monotonic(ts)
-
-                # Determine protocol
-                protocol = mode_protocol
-                if isinstance(protocol, str):
-                    if protocol == "amc_rh":
-                        rt_result = amc_rtb(ts)
-                        protocol = AMC_RH(rt_result.r_lo)
-                    elif protocol == "amc_ra":
-                        rt_result = amc_rtb(ts)
-                        protocol = AMC_RA(rt_result.r_lo)
-                    else:
-                        protocol = OriginalAMC()
+                rt, _ = analyses[i]
+                if protocol_name == "amc_rh":
+                    protocol = AMC_RH(rt.r_lo)
+                elif protocol_name == "amc_ra":
+                    protocol = AMC_RA(rt.r_lo)
+                else:
+                    protocol = OriginalAMC()
 
                 r = simulate(
                     ts,
@@ -127,7 +131,6 @@ def run_sweep(
 
             # Aggregate metrics
             total_hi_triggers = sum(r.hi_trigger_events for r in results)
-            total_hi_releases = sum(sum(r.hi_releases_per_task) for r in results)
 
             # Statistical power warning
             if total_hi_triggers < power_threshold:
@@ -137,24 +140,32 @@ def run_sweep(
                 )
 
             for i, (ts, r) in enumerate(zip(ensemble, results)):
+                rt, nontrivial = analyses[i]
                 row = {
                     "U": U,
                     "N": N,
                     "FP": fp,
                     "hi_mode": hi_mode,
-                    "protocol": mode_protocol if isinstance(mode_protocol, str) else "original_amc",
+                    "protocol": protocol_name,
                     "replicate_index": i,
                     "nid": r.nid,
                     "tid": r.tid,
                     "jne": r.jne,
                     "ldm": r.ldm,
                     "hdm": r.hdm,
+                    # The paper's metrics: NiD over HI-criticality job count,
+                    # TiD over simulation time, JNE+LDM over LO-criticality job count.
+                    "nid_pct": r.nid_pct,
+                    "tid_pct": r.tid_pct,
+                    "jne_ldm_pct": r.jne_ldm_pct,
                     "hi_trigger_events": r.hi_trigger_events,
-                    "total_hi_releases": sum(r.hi_releases_per_task),
+                    "total_hi_releases": r.total_hi_releases,
+                    "total_lo_releases": r.total_lo_releases,
+                    "budget_overruns": r.budget_overruns,
                     "individually_infeasible": ts.individually_infeasible_count,
                     "aggregate_hi_utilisation": ts.aggregate_hi_utilisation,
-                    "schedulable_amc_rtb": amc_rtb(ts).overall_schedulable,
-                    "nontrivial_amc": is_nontrivial_amc_taskset(ts),
+                    "schedulable_amc_rtb": rt.overall_schedulable,
+                    "nontrivial_amc": nontrivial,
                 }
                 all_rows.append(row)
 
