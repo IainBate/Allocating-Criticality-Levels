@@ -104,10 +104,15 @@ The output parquet file has one row per `(U, N, replicate)` with these columns:
 | `nid` | Number of degraded-mode entries |
 | `tid` | Fraction of time in degraded mode |
 | `jne` | LO jobs dropped in degraded mode |
-| `ldm` | LO jobs that missed deadline (late) |
-| `hdm` | HI deadline misses (should be 0 for schedulable sets) |
-| `hi_trigger_events` | HI-criticality overrun events observed |
+| `ldm` | LO jobs that executed but missed their deadline |
+| `hdm` | HI deadline misses (0 for AMC-rtb-schedulable sets) |
+| `nid_pct` | NiD as a % of HI-criticality jobs — the paper's NiD(%) |
+| `tid_pct` | TiD as a % of simulation time — the paper's TiD(%) |
+| `jne_ldm_pct` | (JNE + LDM) as a % of LO-criticality jobs — the paper's headline metric |
+| `hi_trigger_events` | Jobs selected to exhibit HI-criticality behaviour |
 | `total_hi_releases` | Total HI-criticality job releases |
+| `total_lo_releases` | Total LO-criticality job releases, including dropped ones |
+| `budget_overruns` | Jobs exceeding their enforced budget (defensive check; should be 0) |
 | `individually_infeasible` | Count of HI tasks with C_hi > T |
 | `aggregate_hi_utilisation` | Sum of C_hi/T for HI tasks |
 | `schedulable_amc_rtb` | Whether AMC-rtb says the task set is schedulable |
