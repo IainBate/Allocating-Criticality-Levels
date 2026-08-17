@@ -228,8 +228,13 @@ where `hp(i)` = higher-priority tasks.
 
 ```
 R_i(HI) = C_i(HI) + Σ_{j∈hp_HI(i)} ⌈R_i(HI) / T_j⌉ × C_j(HI)
-        + Σ_{j∈hp_LO(i)} min(⌈R_i(HI) / T_j⌉, ⌈R_i(LO) / T_j⌉ + 1) × C_j(LO)
+        + Σ_{k∈hp_LO(i)} ⌈R_i(LO) / T_k⌉ × C_k(LO)
 ```
+
+This is equation (2) of `docs/AMCRRTAS2022.pdf` verbatim: the LO-criticality
+term is bounded by `R_i(LO)`, with no `+1` and no `min`. Earlier drafts of this
+document carried a spurious `+1`, which would give R₃(HI) = 20 rather than the
+19 the paper's Appendix A states.
 
 where `hp_HI(i)` = higher-priority HI-criticality tasks,
 `hp_LO(i)` = higher-priority LO-criticality tasks.
