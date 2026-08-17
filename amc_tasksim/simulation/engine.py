@@ -523,6 +523,8 @@ def simulate(
 
         if state.running is not None and state.running.remaining <= 0:
             active.remove(state.running)
+            if trace is not None:
+                trace.append((state.time, "complete", state.running.task_id))
             state.running = None
 
     # Close out an interval of degraded mode still open at the horizon.
