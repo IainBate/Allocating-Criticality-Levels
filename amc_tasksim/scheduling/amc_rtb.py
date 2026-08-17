@@ -94,7 +94,6 @@ def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult
         # the response time or passes D_i, at which point the task is
         # unschedulable and there is nothing more to learn from continuing.
         w = taskset.C_lo[i]
-        converged = False
         for _ in range(max_iterations):
             interference = 0
             for j in range(n):
@@ -103,7 +102,6 @@ def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult
                 interference += _num_jobs(taskset.T[j], w) * taskset.C_lo[j]
             w_new = taskset.C_lo[i] + interference
             if w_new == w:
-                converged = True
                 break
             w = w_new
             if w > taskset.D[i]:
