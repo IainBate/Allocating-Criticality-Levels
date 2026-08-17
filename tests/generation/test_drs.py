@@ -94,14 +94,22 @@ def test_drs_edge_max():
 # ---------------------------------------------------------------------------
 
 def test_drs_equivalence_to_uunifast():
-    """DRS with umax=ones, umin=zeros is statistically indistinguishable from UUnifast."""
+    """DRS with umax=ones, umin=zeros is statistically indistinguishable from UUnifast.
+
+    Both generators are seeded: an unseeded two-sample KS test asserting p > 0.05
+    rejects on about one run in twenty per comparison, whatever the code does.
+    """
     n = 10
     U = 1.0
     n_samples = 10000
 
     # Generate samples from both methods
-    drs_samples = np.column_stack([drs(n, U) for _ in range(n_samples)])
-    uunifast_samples = np.column_stack([uunifast(n, U) for _ in range(n_samples)])
+    rng_drs = np.random.default_rng(20200914)
+    rng_uni = np.random.default_rng(20221107)
+    drs_samples = np.column_stack([drs(n, U, rng=rng_drs) for _ in range(n_samples)])
+    uunifast_samples = np.column_stack(
+        [uunifast(n, U, rng=rng_uni) for _ in range(n_samples)]
+    )
 
     # Project onto a fixed direction (e.g., first component)
     # Both should give Beta(1, n-1) * U for the first component
