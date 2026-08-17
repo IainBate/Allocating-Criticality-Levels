@@ -499,7 +499,7 @@ def simulate(
                         # than R_i(LO) is past its trigger the moment it is
                         # queued, so lower-priority releases at this same
                         # instant must see degraded mode.
-                        enter_if_triggered()
+                        enter_if_triggered(now)
                 # exec_time == 0 (a task whose C_i(LO) rounded to zero) occupies
                 # no processor time; it is counted as released and completes at
                 # its release instant.
