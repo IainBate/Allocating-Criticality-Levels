@@ -36,14 +36,15 @@ class ResponseTimeResult:
     overall_schedulable: bool = False
 
 
-def _num_jobs(task_T: int, time: float) -> int:
+def _num_jobs(task_T: int, time: int) -> int:
     """Number of releases of a periodic task with period T in (0, time].
 
-    Matches the AMC-rtb formula: ceil(time / T).
+    Matches the AMC-rtb formula: ceil(time / T). Computed with integer
+    arithmetic so the result is exact for large response times.
     """
-    if time < 0:
+    if time <= 0:
         return 0
-    return max(0, math.ceil(time / task_T))
+    return -(-int(time) // int(task_T))
 
 
 def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult:
