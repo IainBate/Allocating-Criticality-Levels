@@ -76,46 +76,57 @@ def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult
         ResponseTimeResult with per-task response times and schedulability.
     """
     n = taskset.n
-    r_lo = [0.0] * n
-    r_hi = [0.0] * n
+    r_lo = [0] * n
+    r_hi = [0] * n
 
     for i in range(n):
         # --- Ri(LO) via fixed-point iteration ---
+        # The iteration is monotonically increasing, so it either converges to
+        # the response time or passes D_i, at which point the task is
+        # unschedulable and there is nothing more to learn from continuing.
         w = taskset.C_lo[i]
+        converged = False
         for _ in range(max_iterations):
-            interference = 0.0
+            interference = 0
             for j in range(n):
                 if taskset.priority[j] >= taskset.priority[i]:
                     continue  # j not in hp(i) (equal or higher priority number = not higher priority)
-                num = _num_jobs(taskset.T[j], w)
-                interference += num * taskset.C_lo[j]
+                interference += _num_jobs(taskset.T[j], w) * taskset.C_lo[j]
             w_new = taskset.C_lo[i] + interference
-            if w_new == w or w_new > taskset.D[i] * 2:  # overflow guard
+            if w_new == w:
+                converged = True
                 break
             w = w_new
+            if w > taskset.D[i]:
+                break
+        else:
+            _warn_no_convergence(i, "Ri(LO)", max_iterations)
         r_lo[i] = w
 
         # --- Ri(HI) for HI-criticality tasks ---
         if taskset.criticality[i] == "HI":
             w = taskset.C_hi[i]
             for _ in range(max_iterations):
-                interference = 0.0
+                interference = 0
                 for j in range(n):
                     if taskset.priority[j] >= taskset.priority[i]:
                         continue  # j not in hp(i)
-                    num = _num_jobs(taskset.T[j], w)
                     if taskset.criticality[j] == "HI":
                         # HI-criticality interference at C_j(HI)
-                        interference += num * taskset.C_hi[j]
+                        interference += _num_jobs(taskset.T[j], w) * taskset.C_hi[j]
                     else:
-                        # LO-criticality interference capped at R_j(LO)
-                        num_hi = num
-                        num_lo = math.ceil(r_lo[i] / taskset.T[j])
+                        # LO-criticality releases are bounded by Ri(LO), per (2)
+                        num_hi = _num_jobs(taskset.T[j], w)
+                        num_lo = _num_jobs(taskset.T[j], r_lo[i])
                         interference += min(num_hi, num_lo) * taskset.C_lo[j]
                 w_new = taskset.C_hi[i] + interference
-                if w_new == w or w_new > taskset.D[i] * 2:
+                if w_new == w:
                     break
                 w = w_new
+                if w > taskset.D[i]:
+                    break
+            else:
+                _warn_no_convergence(i, "Ri(HI)", max_iterations)
             r_hi[i] = w
         else:
             r_hi[i] = r_lo[i]  # LO-criticality tasks don't have HI response time
