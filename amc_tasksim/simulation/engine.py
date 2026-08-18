@@ -297,6 +297,63 @@ class AMC_RA(_ResponseTimeTrigger):
 # ---------------------------------------------------------------------------
 
 
+class _TriggerSchedule:
+    """Which HI-criticality job releases exhibit HI-criticality behaviour.
+
+    The paper's model draws an independent Bernoulli(fp) per HI-criticality
+    release. Drawing them one at a time forces every release to be simulated;
+    but the number of releases of a given task between one HI-behaviour job and
+    the next is Geometric(fp), so the same process can be sampled by jumping
+    straight to the next triggering release index. Because the tasks are
+    independent, each is tracked separately and the earliest wins -- no merged
+    release sequence or binary search is needed.
+
+    This is distributionally identical to the per-release Bernoulli, not an
+    approximation of it.
+    """
+
+    def __init__(
+        self,
+        taskset: TaskSet,
+        fp: float,
+        offsets: list[int],
+        rng: np.random.Generator,
+    ) -> None:
+        self.fp = fp
+        self.T = taskset.T
+        self.offsets = offsets
+        self.hi_tasks = [i for i in range(taskset.n) if taskset.criticality[i] == "HI"]
+        # Index (0-based, per task) of that task's next triggering release.
+        self.next_index: dict[int, int] = {}
+        for i in self.hi_tasks:
+            self.next_index[i] = self._gap(rng) - 1 if fp > 0 else -1
+
+    def _gap(self, rng: np.random.Generator) -> int:
+        """Releases from now to and including the next triggering one (>= 1)."""
+        return int(rng.geometric(self.fp))
+
+    def enabled(self) -> bool:
+        return self.fp > 0 and bool(self.hi_tasks)
+
+    def triggers(self, task_id: int, release_index: int) -> bool:
+        return self.next_index.get(task_id, -1) == release_index
+
+    def consume(self, task_id: int, rng: np.random.Generator) -> None:
+        """Advance past a triggering release that has just been issued."""
+        self.next_index[task_id] += self._gap(rng)
+
+    def next_trigger_time(self, horizon: int) -> Optional[int]:
+        """Earliest time at which any HI-criticality task exhibits HI behaviour."""
+        if not self.enabled():
+            return None
+        best: Optional[int] = None
+        for i in self.hi_tasks:
+            t = self.offsets[i] + self.next_index[i] * self.T[i]
+            if t < horizon and (best is None or t < best):
+                best = t
+        return best
+
+
 def _draw_exec_time(
     rng: np.random.Generator,
     taskset: TaskSet,
