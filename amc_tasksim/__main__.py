@@ -65,8 +65,9 @@ def main() -> None:
     parser.add_argument(
         "--scale",
         choices=sorted(SCALES),
-        default="debug",
-        help="sizing preset: 'debug' runs in minutes, 'paper' matches RTAS 2022 Section V-D",
+        default="research",
+        help="sizing preset: 'research' for developing techniques (fast, ~10 core-hours), "
+        "'paper' for strong results (more replicates, more statistical power, ~630 core-hours)",
     )
     parser.add_argument(
         "--n-replicates",
