@@ -9,9 +9,9 @@ Phase 2 acceptance criteria:
 
 import numpy as np
 import pytest
-from scipy.stats import ks_2samp
+from scipy.stats import beta, ks_2samp, kstest
 
-from amc_tasksim.generation.drs import drs, uunifast
+from amc_tasksim.generation.drs import drs, uunifast, uunifast_discard
 
 
 # ---------------------------------------------------------------------------
