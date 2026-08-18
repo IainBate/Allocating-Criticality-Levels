@@ -522,7 +522,7 @@ def simulate(
                 # exec_time == 0 (a task whose C_i(LO) rounded to zero) occupies
                 # no processor time; it is counted as released and completes at
                 # its release instant.
-            next_release[i] = next_release[i] + taskset.T[i]
+            heapq.heappush(release_heap, (now + taskset.T[i], i))
 
         # --- select the running job -------------------------------------------
         state.running = active[0] if active else None
