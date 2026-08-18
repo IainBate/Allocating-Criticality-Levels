@@ -240,7 +240,7 @@ def _execute_job(job: _SimJob) -> dict:
 
 
 def run_sweep(
-    scale: str = "debug",
+    scale: str = "research",
     U_values: Optional[Sequence[float]] = None,
     N_values: Optional[Sequence[int]] = None,
     n_replicates: Optional[int] = None,
