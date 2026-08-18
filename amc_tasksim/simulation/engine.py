@@ -592,20 +592,13 @@ def simulate(
         now = state.time
 
         # --- fast-forward through a stretch with no HI-criticality behaviour --
-        # Only from an idle instant in normal mode, and only far enough back
-        # from the next triggering release for the warm-up to re-establish the
-        # run-queue.
-        #
-        # The empty-queue condition is load-bearing, not an optimisation. A job
-        # that has been released but has not yet reached C_i(LO) leaves the
-        # system in normal mode while still being destined to trigger a mode
-        # change; skipping then discards it, and the mode change never happens.
-        # Because the queue is empty there is nothing to discard here, and
-        # `state.running` is already None: it is re-derived from `active` at the
-        # end of every iteration and only ever cleared together with removing
-        # that same job from `active`.
-        if skipping and state.mode == "normal" and not active:
-            resume = _resume_instant(now, schedule, duration, warm_up)
+        # `_resume_instant` owns the whole eligibility decision, including the
+        # idle-instant precondition it has to hold to. Nothing needs clearing
+        # here: the run-queue is empty by that precondition, and `state.running`
+        # is already None, being re-derived from `active` at the end of every
+        # iteration and only ever cleared together with removing that same job.
+        if skipping:
+            resume = _resume_instant(now, state, schedule, duration, warm_up)
             if resume is not None:
                 _count_skipped_releases(resume, taskset, release_heap, result)
                 if trace is not None:
