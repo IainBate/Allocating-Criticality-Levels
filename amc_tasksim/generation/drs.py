@@ -169,9 +169,18 @@ def _rescale(
     importantly -- introduces one rounding error instead of k. Without it, long
     runs exhaust the precision of the initial point before they converge.
 
-    Returns None if the fold did not converge within `max_iterations`, which the
-    caller handles by drawing a fresh point.
+    Every fold divides by d, so the relative error in P grows with the product
+    of 1/d over the run. That product -- not the iteration count -- is what
+    limits how far the fold can go: once it reaches `precision_budget` the
+    initial point has no significant digits left to contribute, which is the
+    "Shannon entropy exhausted" condition of Section III-D. Iterations that
+    barely expand are numerically free, so the iteration cap is generous and the
+    amplification does the real bounding.
+
+    Returns None if the fold did not converge, which the caller handles by
+    drawing a fresh point.
     """
+    amplification = 1.0
     for _ in range(max_iterations):
         broken = p > r + _TOL
         if not broken.any():
@@ -182,6 +191,9 @@ def _rescale(
         d = 1.0 - total_b
         if d <= 0.0:
             return None  # degenerate; the caller retries from a fresh point
+        amplification /= d
+        if amplification > precision_budget:
+            return None  # no significant digits left; retry from a fresh point
         g = b / total_b
 
         # Coordinate i changes side when d^-k (p_i - g_i) + g_i crosses r_i,
