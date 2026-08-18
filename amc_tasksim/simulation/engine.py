@@ -328,7 +328,19 @@ def _skip_warm_up(taskset: TaskSet, skip_quiet: bool) -> Optional[int]:
             stacklevel=3,
         )
         return None
-    return bound
+
+    # Two separate lookbacks are needed, and the busy period alone is not
+    # enough -- it is typically shorter than the longest period.
+    #
+    #  - A job still pending at the resume instant may have been released up to
+    #    its own deadline earlier, so the queue cannot be reconstructed without
+    #    going back max(D_i).
+    #  - For those jobs' own busy-period start times to be right, the queue has
+    #    to be correct from that point too, which needs a further busy period.
+    #
+    # Warming up for less produces a queue that is too empty at the trigger,
+    # which understates interference and suppresses mode changes.
+    return max(taskset.D) + bound
 
 
 class _TriggerSchedule:
