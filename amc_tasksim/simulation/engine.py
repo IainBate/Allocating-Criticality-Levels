@@ -448,15 +448,20 @@ def simulate(
     # rescanning all n every step dominates the runtime at long durations
     # (measured: ~2/3 of wall time) for no reason, since almost every task
     # is not due.
-    release_heap: list[tuple[int, int]] = []
+    offsets = [0] * n
     for i in range(n):
-        offset = 0
         if release_offsets is not None and release_offsets[i] is not None:
-            offset = int(release_offsets[i])
-        release_heap.append((offset, i))
+            offsets[i] = int(release_offsets[i])
+    release_heap: list[tuple[int, int]] = [(offsets[i], i) for i in range(n)]
     heapq.heapify(release_heap)
 
     priority = taskset.priority  # local binding: hot-path attribute access
+
+    schedule = _TriggerSchedule(taskset, fp, offsets, rng)
+
+    # --- fast-forward setup -------------------------------------------------
+    warm_up = _skip_warm_up(taskset, skip_quiet)
+    skipping = warm_up is not None and schedule.enabled() and exec_time_mode == "random"
 
     state = SchedulerState()
     active: list[Job] = state.active
