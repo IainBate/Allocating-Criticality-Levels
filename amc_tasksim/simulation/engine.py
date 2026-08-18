@@ -598,12 +598,20 @@ def simulate(
             else:
                 result.lo_releases_per_task[i] += 1
 
-            # Both draws happen for every release, including one that is about
-            # to be abandoned, so that the random stream depends only on the
-            # release sequence. That keeps runs of the same task set and seed
-            # under different protocols a precise like-for-like comparison
-            # (Section V-D of the AMC-RH paper).
-            hi_behaviour = bool(crit == "HI" and fp > 0 and rng.random() < fp)
+            # Which releases exhibit HI-criticality behaviour comes from the
+            # schedule, which samples the same Bernoulli process the paper
+            # describes but by geometric jumps rather than one draw per
+            # release. The execution-time draw happens for every release,
+            # including one about to be abandoned, so the stream depends only
+            # on the release sequence -- that keeps runs of the same task set
+            # and seed under different protocols a precise like-for-like
+            # comparison (Section V-D of the AMC-RH paper).
+            hi_behaviour = False
+            if crit == "HI" and schedule.enabled():
+                release_index = (now - offsets[i]) // taskset.T[i]
+                if schedule.triggers(i, release_index):
+                    hi_behaviour = True
+                    schedule.consume(i, rng)
             exec_time = _draw_exec_time(rng, taskset, i, hi_behaviour, exec_time_mode)
 
             if state.mode == "degraded" and crit == "LO":
