@@ -1,7 +1,25 @@
 """Task-set generation for AMC scheduling experiments.
 
-Builds on the DRS (Dirichlet-Rescale) algorithm to produce synthetic
-mixed-criticality task sets with controlled utilisation and period distributions.
+The default mode reproduces the procedure of "Analysis-Runtime Co-design for
+Adaptive Mixed-Criticality Scheduling" (RTAS 2022), Section V-C:
+
+1. The number of HI-criticality tasks is ``n * CP``.
+2. Periods are drawn log-uniformly over a range with a factor of 100 between
+   the smallest and largest, representing 10 ms to 1 s at a 0.1 ms tick.
+   Deadlines are implicit.
+3. HI-criticality utilisations ``U_i(HI)`` are drawn by DRS for the
+   HI-criticality tasks, summing to ``U(HI) = CP * CF * U``.
+4. LO-criticality utilisations ``U_i(LO)`` are drawn by DRS for *all* tasks,
+   summing to ``U``, with each HI-criticality task constrained to
+   ``[0, U_i(HI)]`` -- which is what guarantees ``C_i(LO) <= C_i(HI)`` -- and
+   each LO-criticality task to ``[0, 1]``.
+5. Execution times follow as ``C_i(x) = U_i(x) * T_i``, and BCET is drawn
+   uniformly between 80% and 100% of ``C_i(LO)``.
+
+Note that CF is a ratio of *aggregate* utilisations, not a per-task multiplier:
+individual tasks have a spread of C(HI)/C(LO) ratios. The legacy
+``fixed_ratio`` mode, which sets ``C_i(HI) = CF * C_i(LO)`` for every task, is
+retained for comparison but is not what the papers do.
 """
 
 from __future__ import annotations
@@ -14,6 +32,8 @@ import numpy as np
 
 from .drs import drs
 
+HiMode = Literal["drs_independent", "fixed_ratio"]
+
 
 @dataclass
 class TaskSet:
@@ -21,13 +41,13 @@ class TaskSet:
 
     Attributes:
         n: Number of tasks.
-        criticality: Array of "HI" or "LO" per task.
+        criticality: "HI" or "LO" per task.
         T: Periods in integer ticks.
         D: Deadlines in integer ticks (== T for implicit deadlines).
-        C_lo: Execution time budgets in normal (LO) mode.
-        C_hi: Execution time budgets in degraded (HI) mode.
+        C_lo: Execution time budgets in normal mode.
+        C_hi: Execution time budgets in degraded mode.
         BCET: Best-case execution times.
-        priority: Assigned priority order (filled in Phase 4).
+        priority: Assigned priority order (lower number = higher priority).
         metadata: Generation parameters for reproducibility.
     """
 
@@ -45,6 +65,7 @@ class TaskSet:
     individually_infeasible_count: int = 0
     individually_infeasible_indices: list[int] = field(default_factory=list)
     aggregate_hi_utilisation: float = 0.0
+    zero_budget_count: int = 0
 
     def __len__(self) -> int:
         return self.n
@@ -68,21 +89,35 @@ class TaskSet:
 
     @property
     def U_hi(self) -> np.ndarray:
-        """Per-task HI-criticality utilisation Ci(HI) / Ti (for HI tasks)."""
-        U = np.zeros(self.n)
+        """Per-task HI-criticality utilisation Ci(HI) / Ti (zero for LO tasks)."""
+        u = np.zeros(self.n)
         for i in range(self.n):
             if self.criticality[i] == "HI":
-                U[i] = self.C_hi[i] / self.T[i]
-        return U
+                u[i] = self.C_hi[i] / self.T[i]
+        return u
+
+
+def _min_utilisation(T: np.ndarray, budget: float) -> np.ndarray:
+    """Lower bounds that make every C_i round to at least one tick.
+
+    An execution time of zero is not a task, and it also breaks BCET <= C(LO).
+    Requesting u_i >= 1/T_i fixes that, but only if the total target leaves room;
+    at very low utilisations it does not, and the caller records how many tasks
+    ended up with a zero budget instead.
+    """
+    floor = 1.0 / T
+    if floor.sum() > 0.5 * budget:
+        return np.zeros_like(T)
+    return floor
 
 
 def generate_taskset(
     n: int = 20,
     CP: float = 0.5,
-    U: float = 0.5,
-    CF: float = 1.5,
+    U: float = 0.8,
+    CF: float = 2.0,
     N: int = 10000,
-    hi_mode: Literal["fixed_ratio", "drs_independent"] = "fixed_ratio",
+    hi_mode: HiMode = "drs_independent",
     period_range: tuple[int, int] = (100, 10000),
     bcet_fraction_range: tuple[float, float] = (0.8, 1.0),
     rng_seed: int | None = None,
@@ -91,13 +126,17 @@ def generate_taskset(
 
     Args:
         n: Number of tasks.
-        CP: Proportion of tasks that are HI-criticality.
-        U: Target total utilisation.
-        CF: HI/LO criticality factor (Ci(HI) = CF * Ci(LO) in fixed_ratio mode).
-        N: Inverse failure probability (FP = 1/N).
-        hi_mode: How to generate HI-criticality utilisation.
-        period_range: (min, max) for log-uniform period generation.
-        bcet_fraction_range: (min, max) fraction of Ci(LO) for BCET.
+        CP: Criticality proportion -- the fraction of tasks that are HI.
+        U: Target total LO-criticality utilisation.
+        CF: Criticality factor. In the default mode this is the ratio of total
+            HI-criticality utilisation to total LO-criticality utilisation of
+            the HI-criticality tasks; in `fixed_ratio` it is a per-task
+            multiplier.
+        N: Inverse failure probability, recorded in metadata (FP = 1/N).
+        hi_mode: "drs_independent" for the papers' procedure, "fixed_ratio" for
+            the legacy per-task multiplier.
+        period_range: (min, max) for log-uniform period generation, in ticks.
+        bcet_fraction_range: (min, max) fraction of C_i(LO) for BCET.
         rng_seed: Random seed for reproducibility.
 
     Returns:
@@ -105,87 +144,32 @@ def generate_taskset(
     """
     rng = np.random.default_rng(rng_seed)
 
-    # Step 1: assign criticality levels
     n_hi = round(CP * n)
     n_lo = n - n_hi
     criticality = ["HI"] * n_hi + ["LO"] * n_lo
 
-    # Step 2: per-task utilisation via DRS
-    umax = np.ones(n)
-    umin = np.zeros(n)
-    u = drs(n, U, umax=umax, umin=umin, rng=rng)
-
-    # Step 3: periods — log-uniform
-    log_min = math.log(period_range[0])
-    log_max = math.log(period_range[1])
-    log_periods = rng.uniform(log_min, log_max, size=n)
+    # Periods first: the utilisation bounds that keep every budget at one tick
+    # or more depend on them.
+    log_periods = rng.uniform(math.log(period_range[0]), math.log(period_range[1]), size=n)
     T = np.maximum(np.round(np.exp(log_periods)).astype(int), 1)
     D = T.copy()
 
-    # Step 4: C_lo and BCET
-    C_lo = np.round(u * T).astype(int)
-    bcet_fracs = rng.uniform(bcet_fraction_range[0], bcet_fraction_range[1], size=n)
-    BCET = np.round(C_lo * bcet_fracs).astype(int)
-    BCET = np.maximum(BCET, 1)  # BCET must be at least 1
-
-    # Step 5: C_hi for HI-criticality tasks
-    C_hi = C_lo.copy()
-    infeasible_indices: list[int] = []
-
-    if hi_mode == "fixed_ratio":
-        for i in range(n_hi):
-            c_hi = round(CF * C_lo[i])
-            c_hi = min(c_hi, T[i])  # cap at period
-            C_hi[i] = c_hi
-            if c_hi > T[i]:
-                infeasible_indices.append(i)
-            # Note: c_hi was capped above, so check before capping
-            # Re-check: flag if original CF*C_lo[i] / T[i] > 1
-            if (CF * C_lo[i]) / T[i] > 1.0:
-                if i not in infeasible_indices:
-                    infeasible_indices.append(i)
-
-    elif hi_mode == "drs_independent":
-        # Two-level DRS for HI-criticality tasks (per spec Section III-A):
-        # 1. Draw u(HI) for HI-criticality tasks summing to CF*CP*U
-        # 2. Use u(HI) as per-task max constraint for HI-criticality LO utilisation
-        # 3. Distribute remaining budget among LO-criticality tasks
-
-        # Step 1: draw u(HI)
-        target_u_hi_hi = CF * CP * U
-        u_hi_max = drs(n_hi, target_u_hi_hi, umax=np.ones(n_hi), umin=np.zeros(n_hi), rng=rng)
-
-        # Step 2: draw u(LO) for HI-criticality tasks, constrained by u(HI)
-        u_hi_lo = drs(n_hi, CP * U, umax=u_hi_max, umin=np.zeros(n_hi), rng=rng)
-        u[:n_hi] = u_hi_lo
-
-        # Step 3: distribute remaining budget among LO-criticality tasks
-        remaining_U = U - np.sum(u_hi_lo)
-        if n_lo > 0 and remaining_U > 0:
-            u_lo_max = np.ones(n_lo)
-            u_lo = drs(n_lo, remaining_U, umax=u_lo_max, umin=np.zeros(n_lo), rng=rng)
-            u[n_hi:] = u_lo
-        elif n_lo > 0:
-            # Not enough budget — distribute equally among LO tasks
-            u[n_hi:] = remaining_U / n_lo
-
-        # Recalculate C_lo and BCET for ALL tasks from corrected u
-        C_lo = np.round(u * T).astype(int)
-        BCET = np.maximum(np.round(C_lo * bcet_fracs).astype(int), 1)
-        # C_hi = CF * C_lo for HI tasks, capped at period
-        for i in range(n_hi):
-            c_hi = min(round(CF * C_lo[i]), T[i])
-            C_hi[i] = c_hi
+    if hi_mode == "drs_independent":
+        u_lo, u_hi = _utilisations_paper(n, n_hi, U, CP, CF, T, rng)
+    elif hi_mode == "fixed_ratio":
+        u_lo, u_hi = _utilisations_fixed_ratio(n, n_hi, U, CF, T, rng)
     else:
         raise ValueError(f"Unknown hi_mode: {hi_mode}")
 
-    # Recompute infeasible after any corrections
-    infeasible_indices = [
-        i for i in range(n_hi) if (CF * C_lo[i]) / T[i] > 1.0
-    ]
+    C_lo = np.round(u_lo * T).astype(int)
+    C_hi = np.round(u_hi * T).astype(int)
+    C_hi = np.maximum(C_hi, C_lo)  # rounding must never invert C_lo <= C_hi
 
-    # Step 6: aggregate HI utilisation
-    aggregate_hi_util = sum(C_hi[i] / T[i] for i in range(n_hi))
+    bcet_fracs = rng.uniform(bcet_fraction_range[0], bcet_fraction_range[1], size=n)
+    BCET = np.minimum(np.round(C_lo * bcet_fracs).astype(int), C_lo)
+
+    infeasible = [i for i in range(n_hi) if C_hi[i] > T[i]]
+    C_hi = np.minimum(C_hi, T)
 
     ts = TaskSet(
         n=n,
@@ -205,11 +189,58 @@ def generate_taskset(
             "period_range": period_range,
             "bcet_fraction_range": bcet_fraction_range,
         },
-        individually_infeasible_count=len(infeasible_indices),
-        individually_infeasible_indices=infeasible_indices,
-        aggregate_hi_utilisation=aggregate_hi_util,
+        individually_infeasible_count=len(infeasible),
+        individually_infeasible_indices=infeasible,
+        aggregate_hi_utilisation=float(sum(C_hi[i] / T[i] for i in range(n_hi))),
+        zero_budget_count=int((C_lo == 0).sum()),
     )
     return ts
+
+
+def _utilisations_paper(
+    n: int,
+    n_hi: int,
+    U: float,
+    CP: float,
+    CF: float,
+    T: np.ndarray,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """RTAS 2022 Section V-C: HI utilisations first, then LO utilisations
+    constrained by them."""
+    u_hi = np.zeros(n)
+
+    if n_hi > 0:
+        target_hi = CP * CF * U
+        floor_hi = _min_utilisation(T[:n_hi], target_hi)
+        u_hi[:n_hi] = drs(
+            n_hi, target_hi, umax=np.ones(n_hi), umin=floor_hi, rng=rng
+        )
+
+    # LO-criticality utilisations for every task, with HI-criticality tasks
+    # capped at their own HI-criticality utilisation so C_i(LO) <= C_i(HI).
+    umax = np.ones(n)
+    umax[:n_hi] = u_hi[:n_hi]
+    floor_lo = np.minimum(_min_utilisation(T, U), umax)
+    u_lo = drs(n, U, umax=umax, umin=floor_lo, rng=rng)
+
+    return u_lo, u_hi
+
+
+def _utilisations_fixed_ratio(
+    n: int,
+    n_hi: int,
+    U: float,
+    CF: float,
+    T: np.ndarray,
+    rng: np.random.Generator,
+) -> tuple[np.ndarray, np.ndarray]:
+    """Legacy mode: C_i(HI) = CF * C_i(LO) for every HI-criticality task."""
+    floor = _min_utilisation(T, U)
+    u_lo = drs(n, U, umax=np.ones(n), umin=floor, rng=rng)
+    u_hi = np.zeros(n)
+    u_hi[:n_hi] = CF * u_lo[:n_hi]
+    return u_lo, u_hi
 
 
 def generate_ensemble(
@@ -218,22 +249,20 @@ def generate_ensemble(
     rng_seed: int = 42,
     **kwargs,
 ) -> list[TaskSet]:
-    """Generate an ensemble of task sets.
+    """Generate an ensemble of task sets at one utilisation level.
 
-    Uses deterministic seeding derived from (U, replicate_index) so the
-    same (U, n_replicates) always produces the same ensemble.
+    Seeds are derived from both U and the replicate index, so different
+    utilisation levels get independent periods rather than reusing one set of
+    draws across the whole sweep.
 
     Args:
         n_replicates: Number of task sets to generate.
-        U: Target utilisation (shared across the ensemble).
-        rng_seed: Base seed for the ensemble.
+        U: Target utilisation, shared across the ensemble.
+        rng_seed: Base seed.
         **kwargs: Passed through to generate_taskset.
 
     Returns:
         List of TaskSet objects.
     """
-    task_sets: list[TaskSet] = []
-    for i in range(n_replicates):
-        ts = generate_taskset(U=U, rng_seed=rng_seed + i, **kwargs)
-        task_sets.append(ts)
-    return task_sets
+    base = rng_seed + int(round(U * 1000)) * 1_000_003
+    return [generate_taskset(U=U, rng_seed=base + i, **kwargs) for i in range(n_replicates)]
