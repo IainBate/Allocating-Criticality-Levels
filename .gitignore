@@ -23,6 +23,7 @@ results/*.parquet
 results/*.csv
 results/figures/
 results/SUMMARY.md
+results/VALIDATION.md
 
 # uv
 uv.lock
