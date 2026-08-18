@@ -34,13 +34,36 @@ The sweep is sized by `--scale`. Everything it sets can be overridden individual
 
 | | `debug` | `paper` |
 |---|---|---|
-| Qualifying task sets per U | 20 | 500 |
-| Simulation length | 200 jobs of the longest-period task | 10⁶ jobs |
+| Qualifying task sets per U | 20 | 200 |
+| Simulation length | flat 200 jobs of the longest-period task | scaled to ~1000 expected HI-behaviour jobs per cell, floored at 1000 jobs, capped at 10⁶ jobs |
 | Utilisations | 0.6, 0.7, 0.8, 0.9 | 0.6, 0.7, 0.8, 0.9 |
 | N (FP = 1/N) | 100, 1000, 10000 | 100, 1000, 10000, 100000 |
-| Wall clock | ~5 minutes | hours to days |
+| Total compute (measured) | seconds | ~630 core-hours |
+| Wall clock on 64 cores | seconds | ~10 hours |
 
-`paper` matches RTAS 2022 Section V-D: 500 task sets and a run long enough for 10⁶ jobs of the longest-period task. `debug` shortens both so the framework can be exercised end to end; the metrics land in the right range but the rarest cells are noisy, which the statistical-power figure makes visible.
+**`paper` is not the paper's literal configuration** — it's a documented compute trade-off derived from it. RTAS 2022 Section V-D runs 500 task sets for a duration "sufficient for 10⁶ jobs of the task with the longest period," but that duration is fixed regardless of the failure probability. Sweeping N is this toolkit's own extension, not something the papers do, and a fixed 10⁶-job duration for every N is wasteful: a cell at FP = 10⁻² sees enough HI-behaviour jobs to say something meaningful almost immediately, while a cell at FP = 10⁻⁵ needs a very long run to see any at all. `paper` instead scales duration per (task set, N) to land near a target number of expected HI-behaviour jobs — enough for a ~3% relative standard error on the observed rate — capped at the paper's own 10⁶-job ceiling so no cell ever runs *longer* than the paper's choice, and floored so high-FP cells still cover a reasonable number of periods. This cuts total compute by roughly two orders of magnitude, mostly at the high-FP end where the fixed duration bought nothing.
+
+At literal scale (500 replicates, flat 10⁶-job duration) the same sweep is **~350 CPU-days**. To run the papers' exact configuration if compute allows:
+
+```bash
+uv run python -m amc_tasksim --scale paper --n-replicates 500 --duration-jobs 1000000 --workers N
+```
+
+(Passing `--duration-jobs` explicitly disables the statistical-power scaling — see `Scale.target_hi_events` in `amc_tasksim/experiments/sweep.py`.)
+
+`debug` uses a flat, short duration instead — it isn't meant to have real statistical power, just to prove the pipeline runs end to end. The rarest cells are visibly noisy, which the statistical-power figure makes obvious.
+
+## Running in parallel
+
+Every `(task set, N, protocol)` simulation is independent, so the sweep parallelises across processes with `--workers`:
+
+```bash
+uv run python -m amc_tasksim --scale paper --workers 64 --output results/sweep_paper.parquet --plots
+```
+
+Workers are plain `multiprocessing.Process` + `Pipe`, not `ProcessPoolExecutor` — some sandboxed environments have no working POSIX named-semaphore support at all (`Queue`/`Lock`, which `ProcessPoolExecutor` and `multiprocessing.Pool` both use internally, need one; `Pipe` doesn't). Jobs are assigned to workers by longest-job-first round robin, because duration spans several orders of magnitude across the N sweep and an even split of the *job list* would let one worker draw all the cheap jobs and another draw all the expensive ones. Verified bit-identical against a serial run on the same jobs.
+
+Default is `--workers 1` (serial, in-process) — deliberately, so small/interactive runs and the test suite don't pay fork overhead.
 
 ## CLI Reference
 
