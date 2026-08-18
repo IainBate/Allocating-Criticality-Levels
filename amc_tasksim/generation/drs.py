@@ -147,7 +147,12 @@ def _simplex_scale(r: np.ndarray) -> float:
 _MAX_EXPANSION = 1e12
 
 
-def _rescale(r: np.ndarray, p: np.ndarray, max_iterations: int) -> Optional[np.ndarray]:
+def _rescale(
+    r: np.ndarray,
+    p: np.ndarray,
+    max_iterations: int,
+    precision_budget: float = 1e10,
+) -> Optional[np.ndarray]:
     """Rescale(r, P): fold P into the region where every constraint holds.
 
     Each fold builds the simplex spanned by the broken constraints -- which
