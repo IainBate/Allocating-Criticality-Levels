@@ -525,6 +525,37 @@ def simulate(
     while state.time < duration:
         now = state.time
 
+        # --- fast-forward through a stretch with no HI-criticality behaviour --
+        # Only from normal mode, and only far enough back from the next
+        # triggering release for the warm-up to re-establish the run-queue.
+        if skipping and state.mode == "normal":
+            trigger_at = schedule.next_trigger_time(duration)
+            target = duration if trigger_at is None else trigger_at
+            resume = target - warm_up
+            if resume - now > warm_up:
+                # Releases in [now, resume) are the only thing the skipped
+                # interval contributes, and they are periodic, so count them
+                # rather than simulating them.
+                for idx in range(len(release_heap)):
+                    t_next, i = release_heap[idx]
+                    if t_next < resume:
+                        missed = -(-(resume - t_next) // taskset.T[i])
+                        if taskset.criticality[i] == "HI":
+                            result.hi_releases_per_task[i] += missed
+                        else:
+                            result.lo_releases_per_task[i] += missed
+                        release_heap[idx] = (t_next + missed * taskset.T[i], i)
+                heapq.heapify(release_heap)
+                # The pending jobs are abandoned: they are guaranteed to
+                # complete by their deadlines, so they leave no trace in any
+                # metric, and the warm-up rebuilds an equivalent queue.
+                active.clear()
+                state.running = None
+                if trace is not None:
+                    trace.append((now, "skip_to", resume))
+                state.time = resume
+                now = resume
+
         # --- deadline expiries at `now` --------------------------------------
         if active:
             expired = [j for j in active if j.deadline <= now]
