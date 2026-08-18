@@ -77,7 +77,7 @@ uv run python -m amc_tasksim [OPTIONS]
 
 | Option | Default | Description |
 |---|---|---|
-| `--scale` | `debug` | Sizing preset: `debug` or `paper` |
+| `--scale` | `research` | Sizing preset: `research` or `paper` |
 | `--n-replicates N` | from `--scale` | Qualifying task sets per utilisation level |
 | `--duration-jobs N` | from `--scale` | Run length in jobs of the longest-period task |
 | `--U-values ...` | from `--scale` | Utilisation levels |
