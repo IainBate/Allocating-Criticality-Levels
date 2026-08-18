@@ -449,9 +449,15 @@ def simulate(
         enter_if_triggered(now)
 
         # --- releases at `now` ------------------------------------------------
-        for i in release_order:
-            if next_release[i] > now:
-                continue
+        # Pop everything due, in priority order (highest first) so simultaneous
+        # releases inherit busy-period start times correctly (Appendix B).
+        due: list[int] = []
+        while release_heap and release_heap[0][0] <= now:
+            due.append(heapq.heappop(release_heap)[1])
+        if len(due) > 1:
+            due.sort(key=lambda i: priority[i])
+
+        for i in due:
             crit = taskset.criticality[i]
             if crit == "HI":
                 result.hi_releases_per_task[i] += 1
