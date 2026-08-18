@@ -155,13 +155,15 @@ def _ssr(r: np.ndarray, p: np.ndarray, max_iterations: int) -> Optional[np.ndarr
     converge quickly. If the constraints simplex is the smaller one, the problem
     is transposed, solved, and transposed back.
     """
-    if _simplex_scale(r) > 1.0:
+    if _simplex_scale(r) >= 1.0:
         return _rescale(r, p, max_iterations)
 
     c = _cts(r)
     # The standard simplex, transformed into the constraints simplex's frame,
-    # becomes the constraints of the transposed problem.
-    transformed = np.linalg.solve(c.T, np.eye(len(r)))
+    # becomes the constraints of the transposed problem. RMSS(C) maps a point P
+    # to P @ inv(C), so the image of basis vector e_i is row i of inv(C) and the
+    # transformed simplex has its vertices as the rows of inv(C).
+    transformed = np.linalg.inv(c)
     # CtS puts the constraint value in every off-diagonal entry of a column;
     # read it back from the first row that is not on the diagonal.
     q = np.array([transformed[1 if j == 0 else 0, j] for j in range(len(r))])
