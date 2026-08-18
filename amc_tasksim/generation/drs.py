@@ -112,22 +112,34 @@ def _cts(r: np.ndarray) -> np.ndarray:
     return s
 
 
-def _rmss_apply(s: np.ndarray, p: np.ndarray) -> np.ndarray:
-    """Apply RMSS(S) to a point: the affine map sending each vertex of S to the
-    corresponding standard basis vector.
+def _rmss_apply(r: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """Apply RMSS(CtS(r)) to a point p.
 
-    An affine map is fixed by the images of a simplex's vertices, so the map is
-    just P @ inv(S), solved rather than inverted for stability. It preserves the
-    sum of components because every vertex of S sums to one.
+    RMSS returns the affine map sending each vertex of a regular simplex to the
+    corresponding standard basis vector, and an affine map is fixed by those
+    images. For S = CtS(r) the map has a closed form: vertex i of S is r with
+    its i-th component replaced by 1 - sum(r) + r_i, so
+
+        (v_i - r) / (1 - sum(r)) = e_i
+
+    and therefore the map is p -> (p - r) / (1 - sum(r)). Using it directly is
+    exact, O(n) rather than O(n^3), and avoids inverting a matrix that becomes
+    ill-conditioned as the simplex shrinks.
     """
-    return np.linalg.solve(s.T, p)
+    return (p - r) / (1.0 - r.sum())
+
+
+def _rmss_invert(r: np.ndarray, p: np.ndarray) -> np.ndarray:
+    """Inverse of :func:`_rmss_apply`: map the standard simplex back onto CtS(r)."""
+    return p * (1.0 - r.sum()) + r
 
 
 def _simplex_scale(r: np.ndarray) -> float:
     """Edge-length ratio of CtS(r) to the standard simplex.
 
     Vertices i and j of CtS(r) differ by (1 - sum(r)) * (e_i - e_j), so the
-    constraints simplex is the standard simplex scaled by |1 - sum(r)|.
+    constraints simplex is the standard simplex scaled by |1 - sum(r)|, and the
+    volume ratio in n-1 dimensions is that value to the power n-1.
     """
     return abs(1.0 - float(r.sum()))
 
@@ -135,44 +147,41 @@ def _simplex_scale(r: np.ndarray) -> float:
 def _rescale(r: np.ndarray, p: np.ndarray, max_iterations: int) -> Optional[np.ndarray]:
     """Rescale(r, P): fold P into the region where every constraint holds.
 
+    Each fold builds the simplex spanned by the broken constraints -- which
+    contains P by construction -- and maps it onto the standard simplex.
+
     Returns None if the fold did not converge within `max_iterations`, which the
     caller handles by drawing a fresh point.
     """
-    for _ in range(max_iterations):
+    for i in range(max_iterations):
         broken = p > r + _TOL
         if not broken.any():
             return p
         b = np.where(broken, r, 0.0)
-        p = _rmss_apply(_cts(b), p)
+        p = _rmss_apply(b, p)
     return None
 
 
 def _ssr(r: np.ndarray, p: np.ndarray, max_iterations: int) -> Optional[np.ndarray]:
     """SmallestSimplexRescale(r, P).
 
-    Generating points in the smaller of the two simplices guarantees that at
-    most n-1 of the n constraints are broken, which is what makes the fold
-    converge quickly. If the constraints simplex is the smaller one, the problem
-    is transposed, solved, and transposed back.
+    Points generated in the smaller of the two simplices break at most n-1 of
+    the n constraints, which is what keeps the fold converging quickly. When the
+    constraints simplex is the smaller one the problem is transposed, solved,
+    and transposed back.
     """
-    if _simplex_scale(r) >= 1.0:
+    total = float(r.sum())
+    if abs(1.0 - total) >= 1.0:
         return _rescale(r, p, max_iterations)
 
-    c = _cts(r)
-    # The standard simplex, transformed into the constraints simplex's frame,
-    # becomes the constraints of the transposed problem. RMSS(C) maps a point P
-    # to P @ inv(C), so the image of basis vector e_i is row i of inv(C) and the
-    # transformed simplex has its vertices as the rows of inv(C).
-    transformed = np.linalg.inv(c)
-    # CtS puts the constraint value in every off-diagonal entry of a column;
-    # read it back from the first row that is not on the diagonal.
-    q = np.array([transformed[1 if j == 0 else 0, j] for j in range(len(r))])
-
+    # Transposed constraints: the image of e_j under RMSS(CtS(r)) is
+    # (e_j - r) / (1 - sum(r)), whose off-diagonal entry in column k is
+    # -r_k / (1 - sum(r)).
+    q = r / (total - 1.0)
     t = _rescale(q, p, max_iterations)
     if t is None:
         return None
-    # The inverse of RMSS(C) maps the standard simplex back onto C.
-    return t @ c
+    return _rmss_invert(r, t)
 
 
 # ---------------------------------------------------------------------------
