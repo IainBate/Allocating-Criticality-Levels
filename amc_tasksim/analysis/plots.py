@@ -340,7 +340,7 @@ def _write_validation_report(df: pd.DataFrame) -> str:
         "",
         "## Configuration",
         "",
-        f"- Utilisations: {sorted(df['U'].unique())}",
+        f"- Utilisations: {[round(float(u), 3) for u in sorted(df['U'].unique())]}",
         f"- N (FP = 1/N): {sorted(int(n) for n in df['N'].unique())}",
         f"- Protocols: {', '.join(PROTOCOL_LABELS.get(p, p) for p in protocols)}",
         f"- Replicates per (U, N, protocol): "
