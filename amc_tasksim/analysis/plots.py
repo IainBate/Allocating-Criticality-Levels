@@ -359,6 +359,17 @@ def _write_validation_report(df: pd.DataFrame) -> str:
             f"| {c['name']} | {c['source']} | {c['expected']} | {c['observed']} | {mark} |"
         )
 
+    lines += [
+        "",
+        "**What PASS means here.** These are order-of-magnitude checks, not tight",
+        "ones: an absolute metric passes within a factor of three of the paper's",
+        "quoted band, a Table I ratio passes if it is no more than three times the",
+        "quoted value, and the NiD-to-FP ratio passes between 0.3 and 1.15. They are",
+        "sized to catch a simulator that is wrong by orders of magnitude -- which is",
+        "the failure mode they were written for -- not to certify agreement. Read the",
+        "observed column, not the verdict.",
+    ]
+
     # Metric table at the paper's operating point
     op = df[np.isclose(df["FP"], PAPER_FP) & np.isclose(df["U"], PAPER_U)]
     if not op.empty:
