@@ -400,6 +400,49 @@ class _TriggerSchedule:
         return best
 
 
+def _resume_instant(
+    now: int,
+    schedule: _TriggerSchedule,
+    duration: int,
+    warm_up: int,
+) -> Optional[int]:
+    """Instant to resume exact simulation at, or None if skipping is not worth it.
+
+    Exact simulation has to restart ``warm_up`` before the next instant that any
+    metric could observe -- the next release exhibiting HI-criticality behaviour,
+    or the horizon if there is none left. Skipping is only worth the bookkeeping
+    if the interval it covers is itself longer than that warm-up window.
+    """
+    trigger_at = schedule.next_trigger_time(duration)
+    target = duration if trigger_at is None else trigger_at
+    resume = target - warm_up
+    return resume if resume - now > warm_up else None
+
+
+def _count_skipped_releases(
+    resume: int,
+    taskset: TaskSet,
+    release_heap: list[tuple[int, int]],
+    result: SimulationResult,
+) -> None:
+    """Account for the releases before ``resume`` without simulating them.
+
+    Releases are the only thing a skipped interval contributes, and they are
+    periodic, so each task's share is a division rather than a simulation. The
+    heap is advanced to every task's first release at or after ``resume``.
+    """
+    for idx in range(len(release_heap)):
+        t_next, i = release_heap[idx]
+        if t_next < resume:
+            missed = -(-(resume - t_next) // taskset.T[i])
+            if taskset.criticality[i] == "HI":
+                result.hi_releases_per_task[i] += missed
+            else:
+                result.lo_releases_per_task[i] += missed
+            release_heap[idx] = (t_next + missed * taskset.T[i], i)
+    heapq.heapify(release_heap)
+
+
 def _draw_exec_time(
     rng: np.random.Generator,
     taskset: TaskSet,
