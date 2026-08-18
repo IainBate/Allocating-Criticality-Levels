@@ -259,8 +259,8 @@ def run_sweep(
     """Run the AMC experiment sweep.
 
     Args:
-        scale: Sizing preset, "debug" or "paper". Any of the sizing arguments
-            below override it individually.
+        scale: Sizing preset, "research" or "paper". Any of the sizing
+            arguments below override it individually.
         U_values: Utilisation levels.
         N_values: Failure-probability levels (FP = 1/N).
         n_replicates: Qualifying task sets per utilisation level.
