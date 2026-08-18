@@ -85,6 +85,7 @@ uv run python -m amc_tasksim [OPTIONS]
 | `--cf F` | 2.0 | Criticality factor |
 | `--seed N` | 42 | Base random seed |
 | `--output PATH` | `results/sweep.parquet` | Output parquet file |
+| `--workers N` | 1 | Run simulations across this many processes |
 | `--plots` | off | Generate figures and the validation report afterwards |
 | `--clean` | off | Remove results, figures and caches first |
 
