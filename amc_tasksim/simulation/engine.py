@@ -33,6 +33,7 @@ response times (AMC-RH, AMC-RA) read them off each job.
 
 from __future__ import annotations
 
+import heapq
 import math
 import warnings
 from abc import ABC, abstractmethod
