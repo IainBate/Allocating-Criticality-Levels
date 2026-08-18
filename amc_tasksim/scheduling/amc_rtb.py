@@ -155,6 +155,49 @@ def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult
     )
 
 
+def busy_period_bound(taskset: TaskSet, max_iterations: int = 10000) -> Optional[int]:
+    """Longest possible normal-mode busy period, over all priority levels.
+
+    The fixed point of ``L = sum_j ceil(L / T_j) * C_j(LO)`` taken over every
+    task, i.e. the priority level-n (lowest priority) busy period. No interval
+    of continuous processor activity in normal mode can exceed it.
+
+    This is what bounds how far back a simulation has to be warmed up before
+    its run-queue state is guaranteed to have forgotten whatever preceded it:
+    the busy period containing any instant ``t`` started at or before ``t``, so
+    an idle instant must occur within ``L`` of ``t``.
+
+    Returns:
+        The bound, or None if the iteration does not converge (which means the
+        LO-criticality utilisation is at or above 1 and busy periods are
+        unbounded).
+    """
+    L = sum(taskset.C_lo)
+    if L <= 0:
+        return 0
+    for _ in range(max_iterations):
+        nxt = sum(_num_jobs(taskset.T[j], L) * taskset.C_lo[j] for j in range(taskset.n))
+        if nxt == L:
+            return int(L)
+        L = nxt
+    return None
+
+
+def normal_mode_schedulable(taskset: TaskSet) -> bool:
+    """Whether every task meets its deadline when all jobs comply with C_i(LO).
+
+    This is requirement R1 of the AMC-RH paper. It is the precondition for
+    treating an interval with no HI-criticality behaviour as uneventful: if it
+    holds, such an interval contributes no deadline misses, no mode changes and
+    no abandoned jobs, only job releases.
+    """
+    if not taskset.priority:
+        from amc_tasksim.scheduling.priority import assign_deadline_monotonic
+
+        assign_deadline_monotonic(taskset)
+    return all(amc_rtb(taskset).schedulable_lo)
+
+
 def amc_rtb_single(taskset: TaskSet, i: int, hp: set[int]) -> bool:
     """AMC-rtb schedulability of one task, given the set of higher-priority tasks.
 
