@@ -600,6 +600,10 @@ def simulate(
         if skipping:
             resume = _resume_instant(now, state, schedule, duration, warm_up)
             if resume is not None:
+                # Guaranteed by the warm-up margin `_resume_instant` requires.
+                # Stated because the loop would otherwise spin forever rather
+                # than fail, time having gone backwards.
+                assert resume > now, f"fast-forward would rewind {now} -> {resume}"
                 _count_skipped_releases(resume, taskset, release_heap, result)
                 if trace is not None:
                     trace.append((now, "skip_to", resume))
