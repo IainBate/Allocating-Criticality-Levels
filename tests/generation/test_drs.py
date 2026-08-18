@@ -139,21 +139,95 @@ def test_uunifast_basic():
 # Test 4: Performance sanity check
 # ---------------------------------------------------------------------------
 
-def test_drs_performance_n50():
-    """For n=50, U=0.5, umax=UUnifast(50,1), complete quickly."""
+def test_drs_performance_generator_shapes():
+    """The constraint shapes the AMC generator actually uses are fast.
+
+    Two DRS calls per task set: HI-criticality utilisations for the HI tasks,
+    then LO-criticality utilisations for all tasks capped by them.
+    """
     import time
 
-    n = 50
-    U = 0.5
-    umax = uunifast(n, 1.0)
-    umin = np.zeros(n)
-
+    rng = np.random.default_rng(9)
     start = time.perf_counter()
-    for _ in range(100):
-        drs(n, U, umax=umax, umin=umin)
-    elapsed = time.perf_counter() - start
+    for _ in range(200):
+        u_hi = drs(10, 0.5 * 2.0 * 0.8, rng=rng)
+        drs(20, 0.8, umax=np.concatenate([u_hi, np.ones(10)]), rng=rng)
+    per_taskset = (time.perf_counter() - start) / 200
 
-    assert elapsed < 30.0, f"DRS took {elapsed:.1f}s for 100 calls (n=50); expected < 30s"
+    assert per_taskset < 0.05, f"{per_taskset * 1000:.1f} ms per task set; expected < 50 ms"
+
+
+def test_drs_hardest_case_fails_loudly_rather_than_hanging():
+    """sum(umax) == 2U is the regime the paper flags as worst case.
+
+    There the constraints simplex and the standard simplex have equal volume, so
+    the duality optimisation cannot help, and the fold runs long enough to
+    exhaust 64-bit precision (DRS paper, Section III-D). Roughly a third of
+    calls cannot be served; what matters is that the failure is a clear
+    exception rather than a hang or a silently biased sample.
+    """
+    rng = np.random.default_rng(5)
+    failures = 0
+    for _ in range(12):
+        umax = uunifast(50, 1.0, rng=rng)
+        try:
+            x = drs(50, 0.5, umax=umax, rng=rng)
+        except RuntimeError as exc:
+            assert "precision" in str(exc)
+            failures += 1
+        else:
+            # Anything it does return must still be correct.
+            assert abs(x.sum() - 0.5) < 1e-4
+            assert np.all(x <= umax + 1e-9) and np.all(x >= -1e-9)
+    assert failures < 12, "expected at least some calls to succeed"
+
+
+# ---------------------------------------------------------------------------
+# Uniformity: the property the old clamping implementation did not have
+# ---------------------------------------------------------------------------
+
+
+def test_drs_puts_no_mass_on_the_constraint_boundary():
+    """A correct sampler has a continuous density, so no component should land
+    exactly on its bound. Clamping violators to their bound does the opposite."""
+    rng = np.random.default_rng(0)
+    samples = np.array([drs(4, 1.0, umax=np.full(4, 0.3), rng=rng) for _ in range(4000)])
+
+    on_bound = np.isclose(samples, 0.3, atol=1e-9).mean()
+    assert on_bound == 0.0, f"{on_bound:.3%} of components sit exactly on the bound"
+    assert np.allclose(samples.sum(axis=1), 1.0)
+    assert np.all(samples <= 0.3 + 1e-9)
+
+
+@pytest.mark.parametrize(
+    "n,umax",
+    [
+        (5, np.full(5, 0.4)),
+        (4, np.array([0.7, 0.5, 0.45, 0.3])),
+        (5, np.array([0.9, 0.6, 0.35, 0.3, 0.25])),
+        (4, np.full(4, 0.3)),
+    ],
+)
+def test_drs_matches_rejection_sampling(n: int, umax: np.ndarray):
+    """DRS must be indistinguishable from UUnifast-Discard, which is uniform by
+    construction, on polytopes where rejection sampling is still tractable."""
+    rng_a = np.random.default_rng(1)
+    rng_b = np.random.default_rng(2)
+    a = np.array([drs(n, 1.0, umax=umax, rng=rng_a) for _ in range(4000)])
+    b = np.array([uunifast_discard(n, 1.0, umax=umax, rng=rng_b) for _ in range(4000)])
+
+    for i in range(n):
+        p = ks_2samp(a[:, i], b[:, i]).pvalue
+        assert p > 0.001, f"component {i} differs from the reference: p={p:.4f}"
+
+
+@pytest.mark.parametrize("n", [5, 10, 20])
+def test_drs_unconstrained_marginal_is_beta(n: int):
+    """With no binding constraints the marginal of each component is Beta(1, n-1)."""
+    rng = np.random.default_rng(3)
+    samples = np.array([drs(n, 1.0, rng=rng) for _ in range(6000)])
+    p = kstest(samples[:, 0], beta(1, n - 1).cdf).pvalue
+    assert p > 0.001, f"marginal is not Beta(1, {n - 1}): p={p:.4f}"
 
 
 # ---------------------------------------------------------------------------
