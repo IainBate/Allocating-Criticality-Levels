@@ -263,39 +263,35 @@ def _fp_response_time_max(taskset: TaskSet, i: int) -> float:
     return w
 
 
-def is_nontrivial_amc_taskset(taskset: TaskSet) -> bool:
-    """Check if a task set genuinely needs the mixed-criticality scheme.
+def is_nontrivial_amc_taskset(taskset: TaskSet, use_opa: bool = True) -> bool:
+    """Whether a task set is one the papers would have kept.
 
-    A task set is "non-trivial" if:
-    (a) It is schedulable under AMC-rtb, AND
-    (b) At least one HI-criticality task is NOT schedulable under
-        plain fixed-priority analysis assuming every task executes at
-        max(C_i(LO), C_i(HI)).
+    Section V-C of the AMC-RH paper: "we required that the task sets chosen had
+    at least one task that was unschedulable according to exact analysis of
+    fixed priority preemptive scheduling (i.e. ignoring criticality), but were
+    nevertheless schedulable according to the AMC-rtb test."
 
-    This follows the methodology in the AMC-RH paper Section V-C.
+    So the task set must (a) fail single-criticality FPPS at
+    max(C_i(LO), C_i(HI)) -- otherwise it needs no mixed-criticality scheme at
+    all -- and (b) pass AMC-rtb.
 
     Args:
-        taskset: Task set with priorities assigned.
+        taskset: Task set. Priorities are assigned if absent.
+        use_opa: Assign priorities with Audsley's algorithm, as the papers do.
+            With False, whatever ordering the task set already carries is used.
 
     Returns:
-        True if the task set is non-trivial (needs AMC to be schedulable).
+        True if the task set belongs to the papers' population.
     """
-    from amc_tasksim.scheduling.priority import assign_deadline_monotonic
+    from amc_tasksim.scheduling.priority import assign_audsley_opa, assign_deadline_monotonic
 
-    # Ensure priorities are assigned
-    if not taskset.priority:
-        assign_deadline_monotonic(taskset)
-
-    # Check (a): schedulable under AMC-rtb
-    result = amc_rtb(taskset)
-    if not result.overall_schedulable:
+    # (a) must not already be schedulable ignoring criticality
+    if fpps_schedulable(taskset):
         return False
 
-    # Check (b): at least one HI task unschedulable under plain FP
-    for i in range(taskset.n):
-        if taskset.criticality[i] == "HI":
-            fp_rt = _fp_response_time_max(taskset, i)
-            if fp_rt > taskset.D[i]:
-                return True
-
-    return False
+    # (b) must be schedulable under AMC-rtb
+    if use_opa:
+        return assign_audsley_opa(taskset)
+    if not taskset.priority:
+        assign_deadline_monotonic(taskset)
+    return amc_rtb(taskset).overall_schedulable
