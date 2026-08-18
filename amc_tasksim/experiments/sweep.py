@@ -401,18 +401,71 @@ def _run_serial(jobs: list[_SimJob], verbose: bool) -> list[dict]:
     return rows
 
 
+def _worker_chunk(chunk: list[_SimJob], conn) -> None:
+    """Run a chunk of jobs in a worker process and send the results back.
+
+    A plain function at module level (rather than a closure) so it stays
+    picklable on platforms without `fork`, where the target has to survive
+    being sent to a fresh interpreter rather than just continuing after a
+    copy-on-write fork.
+    """
+    try:
+        conn.send(("ok", [_execute_job(job) for job in chunk]))
+    except Exception as exc:  # noqa: BLE001 - reported to the parent, not raised here
+        conn.send(("error", repr(exc)))
+    finally:
+        conn.close()
+
+
 def _run_parallel(jobs: list[_SimJob], n_workers: int, verbose: bool) -> list[dict]:
-    rows = []
-    total = len(jobs)
-    report_every = max(1, total // 20)
+    """Run jobs across `n_workers` processes.
+
+    Uses bare `Process` + `Pipe` rather than `ProcessPoolExecutor` or
+    `multiprocessing.Pool`: those use a `Queue`/`Lock` internally, which needs
+    a named POSIX semaphore, and some sandboxed environments have no working
+    `sem_open` at all. `Pipe` does not need one.
+
+    Jobs vary enormously in cost -- duration spans several orders of
+    magnitude across the N sweep -- so chunks are assigned by longest-job-
+    first round robin (a standard list-scheduling heuristic) rather than by
+    splitting the job list into equal-sized slices, which would let one
+    worker draw all the cheap jobs and another draw all the expensive ones.
+    """
+    n_workers = max(1, min(n_workers, len(jobs)))
+    ordered = sorted(jobs, key=lambda j: j.duration, reverse=True)
+    chunks: list[list[_SimJob]] = [[] for _ in range(n_workers)]
+    for k, job in enumerate(ordered):
+        chunks[k % n_workers].append(job)
+
+    ctx = mp.get_context("fork") if hasattr(os, "fork") else mp.get_context()
+
+    procs = []
+    conns = []
+    for chunk in chunks:
+        if not chunk:
+            continue
+        parent_conn, child_conn = ctx.Pipe(duplex=False)
+        p = ctx.Process(target=_worker_chunk, args=(chunk, child_conn))
+        p.start()
+        child_conn.close()  # only the child needs its end
+        procs.append(p)
+        conns.append(parent_conn)
+
+    if verbose:
+        sizes = [len(c) for c in chunks if c]
+        print(f"  {len(procs)} workers, chunk sizes {min(sizes)}-{max(sizes)} jobs")
+
+    rows: list[dict] = []
     t0 = time.monotonic()
-    with ProcessPoolExecutor(max_workers=n_workers) as executor:
-        futures = [executor.submit(_execute_job, job) for job in jobs]
-        for k, fut in enumerate(as_completed(futures)):
-            rows.append(fut.result())
-            if verbose and (k + 1) % report_every == 0:
-                elapsed = time.monotonic() - t0
-                rate = (k + 1) / elapsed if elapsed > 0 else 0
-                eta = (total - k - 1) / rate if rate > 0 else float("nan")
-                print(f"  {k + 1}/{total} ({rate:.1f}/s, eta {eta / 60:.1f} min)")
+    for k, (p, conn) in enumerate(zip(procs, conns)):
+        status, payload = conn.recv()
+        conn.close()
+        if status == "error":
+            for other in procs:
+                other.terminate()
+            raise RuntimeError(f"worker failed: {payload}")
+        rows.extend(payload)
+        p.join()
+        if verbose:
+            print(f"  worker {k + 1}/{len(procs)} finished ({time.monotonic() - t0:.0f}s elapsed)")
     return rows
