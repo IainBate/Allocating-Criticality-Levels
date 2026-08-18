@@ -115,6 +115,13 @@ def main() -> None:
         "--output", type=str, default="results/sweep.parquet", help="output parquet path"
     )
     parser.add_argument(
+        "--workers",
+        type=int,
+        default=1,
+        help="run simulations across this many processes; every (task set, N, protocol) "
+        "run is independent, so this scales close to linearly with core count",
+    )
+    parser.add_argument(
         "--plots",
         action="store_true",
         help="generate figures and the validation report after the sweep",
