@@ -21,25 +21,29 @@ The reference papers are in `docs/`:
 uv sync --all-extras          # install
 uv run pytest                 # 186 tests
 
-# A sweep you can iterate on: minutes, not hours
-uv run python -m amc_tasksim --scale debug --plots
+# Research: developing techniques. Fast enough to run often.
+uv run python -m amc_tasksim --scale research --plots
 
-# The paper's configuration: run this on a big machine
-uv run python -m amc_tasksim --scale paper --output results/sweep_paper.parquet --plots
+# Paper: strong results for the writeup. Run this on a big machine.
+uv run python -m amc_tasksim --scale paper --workers 64 --output results/sweep_paper.parquet --plots
 ```
 
 ## Scale presets
 
-The sweep is sized by `--scale`. Everything it sets can be overridden individually.
+Two presets, matched to the two phases of doing this kind of work: `research` for developing and debugging a technique, `paper` for the results that go in the writeup. Both are sized by `--scale`; everything a preset sets can be overridden individually.
 
-| | `debug` | `paper` |
+| | `research` | `paper` |
 |---|---|---|
-| Qualifying task sets per U | 20 | 200 |
-| Simulation length | flat 200 jobs of the longest-period task | scaled to ~1000 expected HI-behaviour jobs per cell, floored at 1000 jobs, capped at 10⁶ jobs |
+| Qualifying task sets per U | 100 | 200 |
+| Simulation length | scaled to ~300 expected HI-behaviour jobs per cell, floored at 300 jobs | scaled to ~1000 expected HI-behaviour jobs per cell, floored at 1000 jobs |
+| | capped at 10⁶ jobs | capped at 10⁶ jobs |
 | Utilisations | 0.6, 0.7, 0.8, 0.9 | 0.6, 0.7, 0.8, 0.9 |
 | N (FP = 1/N) | 100, 1000, 10000 | 100, 1000, 10000, 100000 |
-| Total compute (measured) | seconds | ~630 core-hours |
-| Wall clock on 64 cores | seconds | ~10 hours |
+| Total compute (measured) | ~10 core-hours | ~630 core-hours |
+| Wall clock on 32 cores | ~20 min | ~20 hours |
+| Wall clock on 64 cores | ~10 min | ~10 hours |
+
+`research` leaves out N = 100000 by default. It's the one cell that dominates compute regardless of the statistical-power target — a run long enough to see a meaningful number of FP = 10⁻⁵ events is long by construction — so it isn't worth paying for on every development iteration. Pull it in deliberately with `--n-values 100 1000 10000 100000` when you actually want it at research scale.
 
 **`paper` is not the paper's literal configuration** — it's a documented compute trade-off derived from it. RTAS 2022 Section V-D runs 500 task sets for a duration "sufficient for 10⁶ jobs of the task with the longest period," but that duration is fixed regardless of the failure probability. Sweeping N is this toolkit's own extension, not something the papers do, and a fixed 10⁶-job duration for every N is wasteful: a cell at FP = 10⁻² sees enough HI-behaviour jobs to say something meaningful almost immediately, while a cell at FP = 10⁻⁵ needs a very long run to see any at all. `paper` instead scales duration per (task set, N) to land near a target number of expected HI-behaviour jobs — enough for a ~3% relative standard error on the observed rate — capped at the paper's own 10⁶-job ceiling so no cell ever runs *longer* than the paper's choice, and floored so high-FP cells still cover a reasonable number of periods. This cuts total compute by roughly two orders of magnitude, mostly at the high-FP end where the fixed duration bought nothing.
 
