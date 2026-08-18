@@ -589,29 +589,14 @@ def simulate(
         # that has been released but has not yet reached C_i(LO) leaves the
         # system in normal mode while still being destined to trigger a mode
         # change; skipping then discards it, and the mode change never happens.
+        # Because the queue is empty there is nothing to discard here, and
+        # `state.running` is already None: it is re-derived from `active` at the
+        # end of every iteration and only ever cleared together with removing
+        # that same job from `active`.
         if skipping and state.mode == "normal" and not active:
-            trigger_at = schedule.next_trigger_time(duration)
-            target = duration if trigger_at is None else trigger_at
-            resume = target - warm_up
-            if resume - now > warm_up:
-                # Releases in [now, resume) are the only thing the skipped
-                # interval contributes, and they are periodic, so count them
-                # rather than simulating them.
-                for idx in range(len(release_heap)):
-                    t_next, i = release_heap[idx]
-                    if t_next < resume:
-                        missed = -(-(resume - t_next) // taskset.T[i])
-                        if taskset.criticality[i] == "HI":
-                            result.hi_releases_per_task[i] += missed
-                        else:
-                            result.lo_releases_per_task[i] += missed
-                        release_heap[idx] = (t_next + missed * taskset.T[i], i)
-                heapq.heapify(release_heap)
-                # The pending jobs are abandoned: they are guaranteed to
-                # complete by their deadlines, so they leave no trace in any
-                # metric, and the warm-up rebuilds an equivalent queue.
-                active.clear()
-                state.running = None
+            resume = _resume_instant(now, schedule, duration, warm_up)
+            if resume is not None:
+                _count_skipped_releases(resume, taskset, release_heap, result)
                 if trace is not None:
                     trace.append((now, "skip_to", resume))
                 state.time = resume
