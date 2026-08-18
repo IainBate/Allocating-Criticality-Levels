@@ -330,9 +330,12 @@ def drs(
             continue
         return np.clip(x, 0.0, span) + umin
 
-    warnings.warn(
-        f"DRS did not converge after {max_retries} retries for n={n}, U={U}; "
-        f"falling back to rejection sampling",
-        stacklevel=2,
+    raise RuntimeError(
+        f"DRS did not converge after {max_retries} retries for n={n}, U={U}. "
+        f"sum(umax)/U = {float(np.sum(span)) / u_prime:.3f}; the fold is hardest "
+        f"when this is near 2, where the constraints simplex and the standard "
+        f"simplex have equal volume and the duality optimisation cannot help. "
+        f"In that regime the run is long enough to exhaust 64-bit precision "
+        f"(Section III-D of the DRS paper); an arbitrary-precision "
+        f"implementation is needed."
     )
-    return uunifast_discard(n, u_prime, umax=span, rng=rng) + umin
