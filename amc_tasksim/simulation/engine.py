@@ -418,6 +418,12 @@ def simulate(
         trace: If given, ``(time, event, task_id)`` tuples are appended for each
             release, drop, completion, deadline miss and mode change. Intended
             for validating scripted scenarios, not for long runs.
+        skip_quiet: Fast-forward through stretches with no HI-criticality
+            behaviour instead of simulating them. Requires the task set to
+            satisfy requirement R1 (every task meets its deadline when all jobs
+            comply with C_i(LO)); the request is ignored, with a warning, if it
+            does not. Statistically equivalent to the exact simulation, but a
+            different sample path -- see the module docstring.
 
     Returns:
         A :class:`SimulationResult`.
