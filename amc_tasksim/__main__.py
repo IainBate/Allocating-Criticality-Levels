@@ -160,6 +160,7 @@ def main() -> None:
         CF=args.cf,
         seed=args.seed,
         output=args.output,
+        n_workers=args.workers,
     )
 
     if df.empty:
