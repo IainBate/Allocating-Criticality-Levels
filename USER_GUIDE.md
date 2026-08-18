@@ -55,7 +55,7 @@ uv run python -m amc_tasksim --scale paper --n-replicates 500 --duration-jobs 10
 
 (Passing `--duration-jobs` explicitly disables the statistical-power scaling — see `Scale.target_hi_events` in `amc_tasksim/experiments/sweep.py`.)
 
-`debug` uses a flat, short duration instead — it isn't meant to have real statistical power, just to prove the pipeline runs end to end. The rarest cells are visibly noisy, which the statistical-power figure makes obvious.
+`research` uses the same scaling with a lighter target (300 events instead of 1000) and a smaller N range, so it stays fast enough to run after every real change to a technique. Its rarest cells are visibly noisier than `paper`'s, which the statistical-power figure makes obvious — that's the deliberate trade-off, not a bug.
 
 ## Running in parallel
 
