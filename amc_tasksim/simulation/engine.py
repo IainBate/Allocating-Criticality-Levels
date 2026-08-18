@@ -402,17 +402,28 @@ class _TriggerSchedule:
 
 def _resume_instant(
     now: int,
+    state: SchedulerState,
     schedule: _TriggerSchedule,
     duration: int,
     warm_up: int,
 ) -> Optional[int]:
-    """Instant to resume exact simulation at, or None if skipping is not worth it.
+    """Instant to resume exact simulation at, or None not to skip from ``now``.
 
     Exact simulation has to restart ``warm_up`` before the next instant that any
     metric could observe -- the next release exhibiting HI-criticality behaviour,
     or the horizon if there is none left. Skipping is only worth the bookkeeping
     if the interval it covers is itself longer than that warm-up window.
+
+    Skipping is sound only from an idle instant in normal mode, and the
+    empty-queue half of that is load-bearing rather than an optimisation: a job
+    that has been released but has not yet reached C_i(LO) leaves the system in
+    normal mode while still being destined to trigger a mode change. Skipping
+    over it discards it, and the mode change never happens -- which silently
+    understates NiD rather than failing loudly.
     """
+    if state.mode != "normal" or state.active:
+        return None
+
     trigger_at = schedule.next_trigger_time(duration)
     target = duration if trigger_at is None else trigger_at
     resume = target - warm_up
