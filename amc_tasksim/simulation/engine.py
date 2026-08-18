@@ -532,9 +532,8 @@ def simulate(
 
         # --- next event --------------------------------------------------------
         next_t = duration
-        for i in range(n):
-            if next_release[i] < next_t:
-                next_t = next_release[i]
+        if release_heap and release_heap[0][0] < next_t:
+            next_t = release_heap[0][0]
         for job in active:
             if job.deadline < next_t:
                 next_t = job.deadline
