@@ -144,21 +144,54 @@ def _simplex_scale(r: np.ndarray) -> float:
     return abs(1.0 - float(r.sum()))
 
 
+_MAX_EXPANSION = 1e12
+
+
 def _rescale(r: np.ndarray, p: np.ndarray, max_iterations: int) -> Optional[np.ndarray]:
     """Rescale(r, P): fold P into the region where every constraint holds.
 
     Each fold builds the simplex spanned by the broken constraints -- which
     contains P by construction -- and maps it onto the standard simplex.
 
+    While the set of broken constraints is unchanged the same transformation
+    repeats, so this applies it k times in one step (the paper's *power
+    transformation*, Section III-D). Written as an expansion about the fixed
+    point g = b / sum(b),
+
+        f(p) = (p - b) / d,  d = 1 - sum(b)   =>   f^k(p) = d^-k (p - g) + g
+
+    so a run of length k costs one operation instead of k, and -- more
+    importantly -- introduces one rounding error instead of k. Without it, long
+    runs exhaust the precision of the initial point before they converge.
+
     Returns None if the fold did not converge within `max_iterations`, which the
     caller handles by drawing a fresh point.
     """
-    for i in range(max_iterations):
+    for _ in range(max_iterations):
         broken = p > r + _TOL
         if not broken.any():
             return p
+
         b = np.where(broken, r, 0.0)
-        p = _rmss_apply(b, p)
+        total_b = b.sum()
+        d = 1.0 - total_b
+        if d <= 0.0:
+            return None  # degenerate; the caller retries from a fresh point
+        g = b / total_b
+
+        # Coordinate i changes side when d^-k (p_i - g_i) + g_i crosses r_i,
+        # i.e. at expansion factor (g_i - r_i) / (g_i - p_i). The smallest such
+        # factor greater than one bounds the run.
+        u = p - g
+        with np.errstate(divide="ignore", invalid="ignore"):
+            crossings = (g - r) / -u
+        crossings = crossings[np.isfinite(crossings) & (crossings > 1.0)]
+        if crossings.size == 0:
+            return None  # the broken set never changes; this point cannot converge
+
+        k = int(np.floor(np.log(crossings.min()) / np.log(1.0 / d)))
+        expansion = min(1.0 / d if k < 1 else d ** (-k), _MAX_EXPANSION)
+        p = expansion * (p - g) + g
     return None
 
 
