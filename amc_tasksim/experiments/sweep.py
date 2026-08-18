@@ -73,28 +73,36 @@ class Scale:
 
 
 SCALES = {
-    # Small enough to iterate on in minutes, large enough that the metrics are
-    # within reach of the paper's. Utilisations are restricted to the band
-    # where the non-trivial population actually exists. Duration is flat here
-    # -- debug runs aren't meant to have real statistical power, just to prove
-    # the pipeline runs end to end.
-    "debug": Scale(
-        n_replicates=20,
-        duration_jobs=200,
+    # Develops the techniques: enough replicates and statistical power to tell
+    # whether a change to the model or a protocol actually did what it was
+    # supposed to, without paying for the rarest cell in the grid. N = 100000
+    # is the one that dominates total compute regardless of target_hi_events
+    # (it needs a long run almost by definition -- FP = 1e-5), so it's left out
+    # of the default grid here and picked up at `paper` scale; pass
+    # `--n-values ... 100000` to include it in a research run deliberately.
+    # Measured: ~10 core-hours total (~20 min on 32 cores).
+    "research": Scale(
+        n_replicates=100,
+        duration_jobs=10**6,
+        duration_jobs_min=300,
+        target_hi_events=300,
         U_values=(0.6, 0.7, 0.8, 0.9),
         N_values=(100, 1000, 10000),
     ),
-    # The task-set configuration of RTAS 2022 Section V-D (500 replicates,
+    # Gets strong results for the paper: more replicates and more statistical
+    # power than `research`, across the full N range. Approximates the
+    # task-set configuration of RTAS 2022 Section V-D (500 replicates,
     # duration "sufficient for 10^6 jobs of the longest-period task"), with
     # duration scaled per N to ~1000 expected HI-behaviour jobs instead of a
-    # flat 10^6-job run for every cell. At the paper's own default FP = 1e-4,
-    # that is still a comfortable ~1000-observation sample; it cuts total
+    # flat 10^6-job run for every cell -- at the paper's own default FP = 1e-4
+    # that is still a comfortable ~1000-observation sample, and it cuts total
     # compute by roughly two orders of magnitude across the N sweep, mostly at
     # the high-FP end where the fixed duration bought nothing. Replicates are
     # reduced from 500 to 200 for the same reason: a documented compute
     # trade-off, not a silent shortcut. Use `duration_jobs=10**6,
     # target_hi_events=None, n_replicates=500` to run the literal paper
-    # configuration if compute allows.
+    # configuration if compute allows (~350 CPU-days).
+    # Measured: ~630 core-hours total (~10 hours on 64 cores).
     "paper": Scale(
         n_replicates=200,
         duration_jobs=10**6,
