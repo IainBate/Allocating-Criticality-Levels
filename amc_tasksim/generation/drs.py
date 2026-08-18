@@ -247,7 +247,7 @@ def drs(
     epsilon: float = 1e-4,
     rng: Optional[np.random.Generator] = None,
     max_retries: int = 50,
-    max_iterations: int = 1000,
+    max_iterations: int = 100_000,
 ) -> np.ndarray:
     """Draw a point uniformly from the constrained simplex.
 
