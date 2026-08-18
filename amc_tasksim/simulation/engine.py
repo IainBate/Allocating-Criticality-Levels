@@ -297,6 +297,40 @@ class AMC_RA(_ResponseTimeTrigger):
 # ---------------------------------------------------------------------------
 
 
+def _skip_warm_up(taskset: TaskSet, skip_quiet: bool) -> Optional[int]:
+    """Warm-up window for fast-forwarding, or None if it is not safe.
+
+    Skipping an interval is only sound if nothing happens in it that the
+    metrics care about. With no HI-criticality behaviour the system stays in
+    normal mode, so no job is abandoned and no mode change occurs; the only
+    remaining risk is a deadline miss, which requirement R1 rules out for a
+    task set that passes normal-mode response-time analysis. A task set that
+    fails it is simulated exactly instead.
+    """
+    if not skip_quiet:
+        return None
+
+    from amc_tasksim.scheduling.amc_rtb import busy_period_bound, normal_mode_schedulable
+
+    if not normal_mode_schedulable(taskset):
+        warnings.warn(
+            "skip_quiet requested but the task set misses deadlines even when every "
+            "job complies with C_i(LO); simulating exactly instead",
+            stacklevel=3,
+        )
+        return None
+
+    bound = busy_period_bound(taskset)
+    if bound is None or bound <= 0:
+        warnings.warn(
+            "skip_quiet requested but the busy-period bound does not converge "
+            "(LO-criticality utilisation at or above 1); simulating exactly instead",
+            stacklevel=3,
+        )
+        return None
+    return bound
+
+
 class _TriggerSchedule:
     """Which HI-criticality job releases exhibit HI-criticality behaviour.
 
