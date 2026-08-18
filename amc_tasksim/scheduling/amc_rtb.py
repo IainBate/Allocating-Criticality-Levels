@@ -155,6 +155,83 @@ def amc_rtb(taskset: TaskSet, max_iterations: int = 10000) -> ResponseTimeResult
     )
 
 
+def amc_rtb_single(taskset: TaskSet, i: int, hp: set[int]) -> bool:
+    """AMC-rtb schedulability of one task, given the set of higher-priority tasks.
+
+    Equations (1) and (2) depend on hp(i) only as a set, not on the relative
+    order within it, which is what makes Audsley's algorithm applicable.
+
+    Args:
+        taskset: Task set (priorities are not consulted).
+        i: Index of the task under test.
+        hp: Indices of the tasks with higher priority than task i.
+
+    Returns:
+        True if task i meets its deadline in both modes.
+    """
+    D_i = taskset.D[i]
+
+    # Ri(LO), equation (1).
+    w = taskset.C_lo[i]
+    while True:
+        nxt = taskset.C_lo[i] + sum(
+            _num_jobs(taskset.T[j], w) * taskset.C_lo[j] for j in hp
+        )
+        if nxt == w:
+            break
+        w = nxt
+        if w > D_i:
+            return False
+    r_lo = w
+
+    if taskset.criticality[i] != "HI":
+        return True
+
+    # Ri(HI), equation (2).
+    hp_hi = [j for j in hp if taskset.criticality[j] == "HI"]
+    hp_lo = [j for j in hp if taskset.criticality[j] != "HI"]
+    lo_interference = sum(
+        _num_jobs(taskset.T[k], r_lo) * taskset.C_lo[k] for k in hp_lo
+    )
+
+    w = taskset.C_hi[i]
+    while True:
+        nxt = (
+            taskset.C_hi[i]
+            + sum(_num_jobs(taskset.T[j], w) * taskset.C_hi[j] for j in hp_hi)
+            + lo_interference
+        )
+        if nxt == w:
+            return True
+        w = nxt
+        if w > D_i:
+            return False
+
+
+def fpps_schedulable(taskset: TaskSet) -> bool:
+    """Exact fixed-priority schedulability ignoring criticality.
+
+    Every task is assumed to execute for max(C_i(LO), C_i(HI)), and priorities
+    are deadline monotonic, which is optimal for constrained deadlines under
+    single-criticality FPPS. This is the baseline the papers use to decide
+    whether a task set actually needs a mixed-criticality scheme.
+    """
+    order = sorted(range(taskset.n), key=lambda i: (taskset.D[i], i))
+    c_max = [max(taskset.C_lo[i], taskset.C_hi[i]) for i in range(taskset.n)]
+
+    for rank, i in enumerate(order):
+        hp = order[:rank]
+        w = c_max[i]
+        while True:
+            nxt = c_max[i] + sum(_num_jobs(taskset.T[j], w) * c_max[j] for j in hp)
+            if nxt == w:
+                break
+            w = nxt
+            if w > taskset.D[i]:
+                return False
+    return True
+
+
 def _fp_response_time_max(taskset: TaskSet, i: int) -> float:
     """Compute worst-case response time under fixed-priority with max execution times.
 
