@@ -159,7 +159,7 @@ from amc_tasksim.scheduling.amc_rtb import amc_rtb, is_nontrivial_amc_taskset
 from amc_tasksim.scheduling.priority import assign_audsley_opa
 from amc_tasksim.simulation.engine import simulate, OriginalAMC, AMC_RA, AMC_RH
 
-ts = generate_taskset(n=20, CP=0.5, U=0.8, CF=2.0, rng_seed=42)
+ts = generate_taskset(n=20, CP=0.5, U=0.8, CF=2.0, rng_seed=1)
 if is_nontrivial_amc_taskset(ts):           # assigns OPA priorities
     r_lo = amc_rtb(ts).r_lo
     for protocol in (OriginalAMC(), AMC_RA(r_lo), AMC_RH(r_lo)):
@@ -168,6 +168,14 @@ if is_nontrivial_amc_taskset(ts):           # assigns OPA priorities
         print(f"{protocol.name:<13} NiD={result.nid_pct:.5f}%  "
               f"TiD={result.tid_pct:.5f}%  JNE+LDM={result.jne_ldm_pct:.5f}%")
 ```
+
+```
+original_amc  NiD=0.02341%  TiD=0.11941%  JNE+LDM=0.10965%
+amc_ra        NiD=0.00000%  TiD=0.00000%  JNE+LDM=0.00000%
+amc_rh        NiD=0.00000%  TiD=0.00000%  JNE+LDM=0.00000%
+```
+
+Not every task set qualifies — `is_nontrivial_amc_taskset` returns False for a task set that plain FPPS already schedules, or that AMC-rtb cannot. And on a single short run the response-time protocols often never degrade at all, which is the effect the papers are measuring; the sweep averages over many task sets to quantify it.
 
 ### Reproducing a scripted scenario
 
