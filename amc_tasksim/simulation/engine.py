@@ -379,14 +379,20 @@ def simulate(
     result.hi_releases_per_task = [0] * n
     result.lo_releases_per_task = [0] * n
 
-    next_release = [0] * n
+    # Pending releases as a min-heap on release time, rather than an array
+    # rescanned every event: with n tasks and usually 0-1 release per event,
+    # rescanning all n every step dominates the runtime at long durations
+    # (measured: ~2/3 of wall time) for no reason, since almost every task
+    # is not due.
+    release_heap: list[tuple[int, int]] = []
     for i in range(n):
+        offset = 0
         if release_offsets is not None and release_offsets[i] is not None:
-            next_release[i] = int(release_offsets[i])
+            offset = int(release_offsets[i])
+        release_heap.append((offset, i))
+    heapq.heapify(release_heap)
 
-    # Release order for simultaneous releases: highest priority first, so that
-    # busy-period start times are inherited correctly (Appendix B).
-    release_order = sorted(range(n), key=lambda i: taskset.priority[i])
+    priority = taskset.priority  # local binding: hot-path attribute access
 
     state = SchedulerState()
     active: list[Job] = state.active
