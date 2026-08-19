@@ -2,7 +2,7 @@
 
 Simulates a single :class:`TaskSet` on one core using discrete-event simulation
 and collects the five metrics defined in Section V-A of the AMC-RH paper
-(RTAS 2022): HDM, JNE, LDM, TiD and NiD.
+(RTAS 2022): HDM, JNE, terminations (the paper's LDM), TiD and NiD.
 
 Model
 -----
@@ -178,7 +178,12 @@ class SimulationResult:
 
     @property
     def jnc_pct(self) -> float:
-        """JNE + LDM as a percentage of the number of LO-criticality jobs."""
+        """JNC: LO jobs that delivered no result, as a % of LO releases.
+
+        Abandoned on release, or started and terminated at their deadline.
+        Both leave the application without a result. This is the paper's
+        "JNE + LDM" figure -- the same count, named for what it measures.
+        """
         n = self.total_lo_releases
         return 100.0 * (self.jne + self.lo_terminated) / n if n else 0.0
 

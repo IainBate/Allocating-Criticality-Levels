@@ -1,7 +1,7 @@
 """Analysis and plotting for AMC experiment sweep results.
 
 Produces the box-and-whisker plots of Section V-E of the AMC-RH paper (RTAS
-2022) -- NiD(%), TiD(%) and JNE(%)+LDM(%) by protocol -- plus a validation
+2022) -- NiD(%), TiD(%) and JNC(%) by protocol -- plus a validation
 report that checks the simulator against the four things the papers actually
 state:
 
@@ -40,7 +40,7 @@ PROTOCOL_LABELS = {
 METRICS = [
     ("nid_pct", "NiD (%)", "degraded-mode entries, % of HI-criticality jobs"),
     ("tid_pct", "TiD (%)", "time in degraded mode, % of simulation time"),
-    ("jnc_pct", "JNE (%) + LDM (%)", "LO-criticality jobs not completed, %"),
+    ("jnc_pct", "JNC (%)", "LO-criticality jobs not completed, %"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -377,7 +377,7 @@ def _write_validation_report(df: pd.DataFrame) -> str:
             "",
             f"## Metrics at U = {PAPER_U}, FP = {PAPER_FP:.0e}",
             "",
-            "| Scheme | NiD (%) | TiD (%) | JNE+LDM (%) | HDM | vs AMC+ (NiD/TiD/JNE+LDM) |",
+            "| Scheme | NiD (%) | TiD (%) | JNC (%) | HDM | vs AMC+ (NiD/TiD/JNE+LDM) |",
             "|---|---|---|---|---|---|",
         ]
         base_agg = _aggregate(op, "original_amc")
@@ -429,7 +429,7 @@ def _write_summary(df: pd.DataFrame, paths: dict[str, str]) -> str:
         "",
         "## Pooled metrics by protocol",
         "",
-        "| Scheme | NiD (%) | TiD (%) | JNE+LDM (%) | HDM | HI-behaviour jobs |",
+        "| Scheme | NiD (%) | TiD (%) | JNC (%) | HDM | HI-behaviour jobs |",
         "|---|---|---|---|---|---|",
     ]
     for p in protocols:

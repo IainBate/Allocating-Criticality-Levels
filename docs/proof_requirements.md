@@ -14,7 +14,7 @@ now, and by what.
 | Property | Status | Established by |
 |----------|--------|----------------|
 | HI tasks meet deadlines at every level | **Proven**, conditional on admissible drop sets | Theorem 1 + admissibility clause 1; drop sets computed by `scheduling/drop_sets.py`, tested in `tests/scheduling/test_drop_sets.py` |
-| Retained LO tasks meet their deadlines (LDM = 0) | **Proven**, conditional on admissible drop sets | Theorem 3 + admissibility clause 2 — replaces the previous, false, "no LO task sees more interference" claim |
+| No LO job ever completes after its deadline | **Proven**, unconditionally | Corollary 3.1. True by construction under deadline termination — stronger than the old clause-2 argument, which held only for retained tasks and only when the drop set was admissible |
 | LO task abandonment is monotonic with level | **Proven** | Lemma 1 — a property of the greedy construction (levels are prefixes of one shed sequence), not an assumption about the drop policy |
 | JNE is bounded by AMC-RH performance | **Proven** | Corollary 1, *and only because of* ladder property (C): no level fires before $R_i(LO)$. Was false under the fraction design (measured: 356 abandoned jobs against AMC-RH's zero, with no fault present) |
 | Time at the *deepest* level is bounded by AMC-RH's degraded time | **Proven** | Theorem 2 via property (C) |

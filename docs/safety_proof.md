@@ -379,22 +379,26 @@ $U=0.7$, $CF=2$), trigger severities $(0, 0.5, 1)$:
 
 | Policy | Task sets uncertifiable | LO tasks shed |
 |---|---|---|
-| Progressive (each task shed at its own rung) | **93 (47%)** | 71.5% |
-| Shed-early (one set, all shed at rung 1) | **0 (0%)** | **68.3%** |
+| Progressive (each task shed at its own rung) | **130 (65%)** | 36.0%† |
+| Shed-early (one set, all shed at rung 1) | **0 (0%)** | **47.6%** |
 | Classic two-level (single trigger) | 0 (0%) | 100% |
 
-On the 106 sets where both are certifiable, shedding early sheds strictly less
-on 12, the same on 94, and more on **none**. And shed-early is certifiable
+† over the certifiable subsample only, so *not* comparable to the row below —
+progressive succeeds on only the easiest third, which flatters its average.
+Head to head on the 69 sets where both are certifiable, shedding early sheds
+strictly less on 21, the same on 48, and more on **none**. (With clause 2
+enforced the figures are 93 of 199 against 0, at 71.5% and 68.3%.) And shed-early is certifiable
 exactly when the task set passes AMC-rtb — shedding everything at
 $R_i(\mathrm{LO})$ *is* AMC-rtb's equation (2) — so it never demands more than
 the classic test and never rescues a set the classic test rejects.
 
 **Conclusion: grading belongs in the budgets, not in the drop sets.**
 Progressive shedding buys nothing the analysis can certify and costs
-certifiability on nearly half the population. The scheme still retains 31.7% of
-the LO-criticality tasks AMC-RH abandons, with a proof they meet their
-deadlines — the quantitative case for grading survives, at a smaller margin
-than the optimistic analysis suggested.
+certifiability on two thirds of the population under the default criterion
+(130 of 199; 93 of 199 with clause 2 enforced). The scheme retains 52.4% of the
+LO-criticality tasks AMC-RH abandons, terminating rather than delivering late
+whichever of those cannot finish — the quantitative case for grading survives,
+at a smaller margin than the optimistic analysis suggested.
 
 For comparison, the figures under the instantaneous-shedding assumption (0.0%
 shed at $\chi \leq 0.25$, 10.0% at 0.50, 33.7% at 0.75, 56.3% at 1.00) are

@@ -715,39 +715,54 @@ trigger severities $(0, 0.5, 1)$:
 
 \begin{table}[h]
 \centering
-\caption{Shedding progressively against shedding at the shallowest rung}
+\caption{Shedding progressively against shedding at the shallowest rung,
+under the default (relaxed clause 2)}
 \label{tab:shed-early}
 \begin{tabular}{lcc}
 \toprule
 Policy & Task sets uncertifiable & LO tasks shed \\
 \midrule
-Progressive (each task at its own rung) & 93 (47\%) & 71.5\% \\
-Shed-early (one set, all at rung 1)     & 0 \phantom{9}(0\%) & 68.3\% \\
+Progressive (each task at its own rung) & 130 (65\%) & 36.0\%$^{\dagger}$ \\
+Shed-early (one set, all at rung 1)     & \phantom{13}0 \phantom{9}(0\%) & 47.6\% \\
 \midrule
-Classic two-level (single trigger)      & 0 \phantom{9}(0\%) & 100\% \\
+Classic two-level (single trigger)      & \phantom{13}0 \phantom{9}(0\%) & 100\% \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-On the $106$ task sets where both policies are certifiable, shedding early
-sheds strictly less on $12$, the same on $94$, and more on none. It is
-therefore never worse, and it is feasible exactly when the task set passes
-AMC-rtb -- shedding everything at $R_i^{\mathrm{lo}}$ \emph{is}
-\Cref{sec:amc-rtb}'s equation. So it never demands more than the classic test
-and never rescues a set the classic test rejects.
+\noindent $^{\dagger}$ over the certifiable subsample only, and therefore
+\emph{not} comparable to the row below it: progressive shedding succeeds only
+on the easiest third of the population, which flatters its average. The
+like-for-like comparison is head to head on the $69$ task sets where both
+policies are certifiable, and there shedding early sheds strictly less on
+$21$, the same on $48$, and more on \textbf{none}.
+
+Shedding early is also feasible exactly when the task set passes AMC-rtb --
+shedding everything at $R_i^{\mathrm{lo}}$ \emph{is} \Cref{sec:amc-rtb}'s
+equation -- so it never demands more than the classic test and never rescues a
+set the classic test rejects.
 
 The conclusion is that \textbf{grading belongs in the budgets, not in the drop
 sets}. Progressive shedding buys nothing the analysis can certify and costs
-certifiability on nearly half the population, which is the formal counterpart
+certifiability on two thirds of the population, which is the formal counterpart
 of \Cref{sec:ex-defer}: a shed deferred to a deep rung arrives too late to help
-the task it was meant to protect. The scheme still retains $31.7\%$ of the
-LO-criticality tasks that two-level AMC abandons, with a proof that they meet
-their deadlines.
+the task it was meant to protect. The scheme retains $52.4\%$ of the
+LO-criticality tasks two-level AMC abandons, and terminates rather than
+delivers late whichever of those cannot finish.
 
-For comparison, the figures obtained under the earlier assumption that
-shedding takes effect instantaneously -- $0.0\%$ shed at $\chi \leq 0.25$,
-$10.0\%$ at $0.50$, $33.7\%$ at $0.75$ and $56.3\%$ at $1.00$ -- are optimistic
-by the whole carry-in term and are retained only as that comparison.
+That conclusion has a cost recorded in \Cref{sec:transition}: a single drop set
+leaves no intermediate tiers, and without intermediate tiers escalation has
+nothing further to shed. Certifying progressive shedding -- which needs the
+windowed two-phase analysis described below -- is therefore the prerequisite
+for graded criticality levels being more than a two-way split.
+
+Under the stricter criterion (clause 2 enforced) the same comparison gives
+$93$ of $199$ uncertifiable for progressive against $0$ for shed-early, at
+$71.5\%$ and $68.3\%$ shed respectively; and under the original assumption
+that shedding takes effect instantaneously, $0.0\%$ shed at $\chi \leq 0.25$,
+$10.0\%$ at $0.50$, $33.7\%$ at $0.75$ and $56.3\%$ at $1.00$. Both are
+retained only for comparison -- the first buys service certainty rather than
+safety, the second is optimistic by the whole carry-in term.
 
 \textbf{Nesting.} $S_1 \subseteq S_2 \subseteq \dots \subseteq S_{k-1}$ is
 required so that a level transition only ever adds to the drop set, keeping

@@ -2,8 +2,10 @@
 
 The claim under test is that a drop set can be *computed* rather than guessed,
 such that at every degradation level both HI-criticality tasks and retained
-LO-criticality tasks provably meet their deadlines. If that holds, LDM is zero
-by construction and the multi-level scheme has no JNE-against-LDM trade-off.
+LO-criticality tasks provably meet their deadlines. That obligation is now
+optional (``require_lo_deadlines``): under deadline termination a retained job
+that cannot finish is discarded rather than delivered late, so its deadline is
+not a safety obligation and requiring it buys service certainty, not safety.
 """
 
 from __future__ import annotations

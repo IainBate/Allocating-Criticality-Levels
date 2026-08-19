@@ -63,7 +63,8 @@ where:
 \textbf{NiD} &\quad \text{Number of times degraded mode is entered (from } L_0 \text{ only)} \\
 \textbf{TiD} &\quad \text{Fraction of time spent in degraded mode} \\
 \textbf{JNE} &\quad \text{Jobs Not Executed (LO jobs dropped)} \\
-\textbf{LDM} &\quad \text{LO Deadline Miss (LO jobs that miss deadline while executing in degraded mode)} \\
+\textbf{Term.} &\quad \text{Terminations (LO jobs discarded at their deadline, incomplete)} \\
+\textbf{JNC} &\quad \text{Jobs Not Completed} = \text{JNE} + \text{Term.}\text{; reported normalised} \\
 \textbf{HDM} &\quad \text{HI Deadline Miss (HI jobs missing deadline; must be zero for a safe scheme)} \\
 \textbf{LevelTrans} &\quad \text{Number of degradation-level changes, any direction, at any depth}
 \end{align*}
