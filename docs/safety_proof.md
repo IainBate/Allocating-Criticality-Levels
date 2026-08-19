@@ -309,8 +309,8 @@ different certification prerequisites.
 
 | | Clause 2 | Retained LO tasks | Needs termination? | Service vs AMC-RH (small pilot) | Service vs AMC-RH (calibrated) |
 |---|---|---|---|---|---|
-| **A conservative** | enforced | certified to complete (LDM = 0 by analysis) | **no** | +1.6 to +3.0 pp | **+2.4% to +14.1%** |
-| **B termination** | objective | best-effort, terminated if late | yes | +3.4 to +5.0 pp | **+3.5% to +22.3%** |
+| **A conservative** | enforced | certified to complete (LDM = 0 by analysis) | **no** | +1.6 to +3.0 pp | **+2.4% to +12.4%** |
+| **B termination** | objective | best-effort, terminated if late | yes | +3.4 to +5.0 pp | **+3.5% to +27.3%** |
 
 Point A is sound under the *original* two-level execution semantics — nothing
 is ever cut off mid-computation — so it is available to anyone unwilling to
