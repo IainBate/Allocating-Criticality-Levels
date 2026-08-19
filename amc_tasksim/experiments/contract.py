@@ -283,20 +283,37 @@ def required_pairs(
     effect: float = EFFECT_FLOOR,
     power_z: float = Z_POWER,
 ) -> int:
-    """Pairs needed to detect ``effect`` at the reporting threshold.
+    """Task sets needed to detect ``effect`` at the reporting threshold.
 
-    Estimates the per-pair variability from a pilot run and extrapolates. Use
-    it to size a study *before* committing to it, rather than discovering
+    Estimates the per-task-set variability from a pilot run and extrapolates.
+    Use it to size a study *before* committing to it, rather than discovering
     afterwards that the result was never reachable.
 
+    This answers "how many task sets", not "how many seeds per task set" --
+    confirmed the two are not interchangeable by running both: on one
+    severity-ladder comparison, quadrupling seeds per task set (10 -> 40,
+    fixed ensemble) left the standard error *unchanged* (0.92x, not the 2x
+    that sqrt(n) scaling would predict), while the ensemble size this
+    function actually recommends (16 -> 64 task sets, seeds held fixed)
+    narrowed the resolvable bound as expected. The task sets in that pilot
+    had a between-task-set coefficient of variation of 0.89, well above the
+    per-seed noise -- when that dominates, more seeds per task set mostly
+    re-measures the same task-set-level value more precisely and barely
+    touches the standard error of the comparison. Adding seeds is only the
+    right lever when a pilot shows *within*-task-set noise is the bottleneck;
+    check that before assuming it (see research/mode_optimization.tex,
+    "Budget Calibration", for the worked example this note is drawn from).
+
     Args:
-        pilot_baseline: Baseline values from a small paired pilot.
+        pilot_baseline: Baseline values from a small paired pilot, one per
+            task set (already aggregated across seeds -- see
+            :func:`aggregate_by_taskset`).
         pilot_candidate: Candidate values from the same pilot, same order.
         effect: Target effect size, relative to the baseline mean.
         power_z: Normal quantile for the desired power.
 
     Returns:
-        Required number of pairs.
+        Required number of task sets, at the pilot's seed-per-task-set count.
     """
     pilot = paired_compare(pilot_baseline, pilot_candidate)
     n = len(pilot_baseline)
