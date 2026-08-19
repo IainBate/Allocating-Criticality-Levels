@@ -129,7 +129,11 @@ class SimulationResult:
         nid: Number of times degraded mode was entered.
         tid: Fraction of the simulation spent in degraded mode.
         jne: LO-criticality jobs abandoned on release in degraded mode.
-        ldm: LO-criticality jobs that executed but missed their deadline.
+        lo_terminated: LO-criticality jobs that started executing but were
+            terminated at their deadline without completing. Not a deadline
+            miss -- a LO-criticality job is never allowed to complete late,
+            since a late result may be worse than none. See
+            ``multilevel.MultiLevelResult.jnc``.
         hdm: HI-criticality jobs that missed their deadline (should be zero).
         hi_releases_per_task: HI-criticality job releases per task.
         lo_releases_per_task: LO-criticality job releases per task, including
@@ -144,7 +148,7 @@ class SimulationResult:
     nid: int = 0
     tid: float = 0.0
     jne: int = 0
-    ldm: int = 0
+    lo_terminated: int = 0
     hdm: int = 0
     hi_releases_per_task: list[int] = field(default_factory=list)
     lo_releases_per_task: list[int] = field(default_factory=list)
@@ -173,10 +177,10 @@ class SimulationResult:
         return 100.0 * self.tid
 
     @property
-    def jne_ldm_pct(self) -> float:
+    def jnc_pct(self) -> float:
         """JNE + LDM as a percentage of the number of LO-criticality jobs."""
         n = self.total_lo_releases
-        return 100.0 * (self.jne + self.ldm) / n if n else 0.0
+        return 100.0 * (self.jne + self.lo_terminated) / n if n else 0.0
 
 
 # ---------------------------------------------------------------------------
@@ -618,7 +622,7 @@ def simulate(
                     if job.criticality == "HI":
                         result.hdm += 1
                     else:
-                        result.ldm += 1
+                        result.lo_terminated += 1
                     active.remove(job)
                     if trace is not None:
                         trace.append((now, "deadline_miss", job.task_id))

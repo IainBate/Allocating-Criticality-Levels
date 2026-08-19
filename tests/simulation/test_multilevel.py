@@ -54,12 +54,47 @@ def population(count: int, **kw) -> list[TaskSet]:
     return out
 
 
+def tight_population(count: int, alpha: float = 0.3, **kw) -> list[TaskSet]:
+    """Task sets whose deadlines sit close to their normal-mode response times.
+
+    ``D_i`` is pulled down to ``alpha`` of the way from ``R_i(LO)`` to ``T_i``,
+    which preserves normal-mode schedulability exactly while removing most of
+    the slack. Terminations do not occur at all in the implicit-deadline
+    population -- a retained LO task there has a median 48-96% of its deadline
+    still to run when it first falls behind -- so any test about termination
+    has to construct a population where the behaviour actually happens.
+    """
+    from amc_tasksim.scheduling.amc_rtb import amc_rtb
+    from amc_tasksim.scheduling.priority import assign_audsley_opa
+    params = dict(n=12, CP=0.5, U=0.7, CF=2.0)
+    params.update(kw)
+    out = []
+    for seed in range(4000):
+        ts = generate_taskset(rng_seed=seed, **params)
+        assign_deadline_monotonic(ts)
+        r = amc_rtb(ts).r_lo
+        if any(r[i] > ts.T[i] for i in range(ts.n)):
+            continue
+        ts.D = [int(r[i] + alpha * (ts.T[i] - r[i])) for i in range(ts.n)]
+        # Audsley's algorithm, as the papers use: deadline-monotonic priorities
+        # on a tightened-deadline set leave the LO tasks too well protected for
+        # any termination to occur, so the behaviour under test never appears.
+        if not assign_audsley_opa(ts):
+            continue
+        if normal_mode_schedulable(ts) and is_nontrivial_amc_taskset(ts, use_opa=False):
+            out.append(ts)
+        if len(out) == count:
+            break
+    assert len(out) == count, f"only found {len(out)} of {count}"
+    return out
+
+
 @pytest.fixture(scope="module")
 def tasksets() -> list[TaskSet]:
     return population(12)
 
 
-FIELDS = ["nid", "jne", "ldm", "hdm", "tid"]
+FIELDS = ["nid", "jne", "lo_terminated", "hdm", "tid"]
 
 
 # ---------------------------------------------------------------------------
@@ -283,13 +318,81 @@ def test_level_trans_at_least_covers_nid(tasksets):
     assert r.level_trans >= r.nid
 
 
-def test_wasted_cpu_is_always_zero():
-    """Documented consequence of abandon-on-release; pinned so drift is visible."""
-    ts = population(1)[0]
-    ladder = build_ladder(ts, [0.0, 0.3])
-    for seed in range(5):
-        r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
-        assert r.wasted_cpu == 0
+def test_no_lo_job_ever_completes_after_its_deadline():
+    """The safety property that makes termination sound rather than lax.
+
+    A LO-criticality job that cannot finish in time is terminated, never allowed
+    to deliver a late result -- a late result may be worse than none. This is
+    the invariant the JNC objective rests on, so it is checked directly against
+    the trace rather than inferred from the metric counts.
+    """
+    for ts in population(4):
+        ladder = build_ladder(ts, [0.0, 0.3])
+        for seed in range(4):
+            trace: list[tuple] = []
+            simulate_multilevel(ts, ladder, duration=DURATION, seed=seed,
+                                fp=0.3, trace=trace)
+            last_release: dict[int, int] = {}
+            for t, event, i in trace:
+                if i < 0:
+                    continue
+                if event == "release":
+                    last_release[i] = t
+                elif event == "complete" and ts.criticality[i] == "LO":
+                    r = last_release.get(i)
+                    assert r is not None, "completion with no preceding release"
+                    assert t <= r + ts.D[i], (
+                        f"task {i} completed at {t}, after its deadline "
+                        f"{r + ts.D[i]} -- a late LO result was delivered"
+                    )
+
+
+def test_wasted_cpu_counts_execution_thrown_away_by_termination():
+    """WastedCPU is live under deadline termination, and was not before.
+
+    The abandon-on-release policy never abandons a job mid-execution, so this
+    metric used to be zero by construction -- a claim this module's docstring
+    made, and which deadline termination falsifies.
+    """
+    seen_termination = False
+    for ts in tight_population(6):
+        ladder = build_ladder(ts, [0.0, 0.5, 1.0], drop_policy="shed_early")
+        if ladder is None:
+            continue
+        for seed in range(3):
+            r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=0.2)
+            assert (r.wasted_cpu > 0) == (r.lo_terminated > 0), (
+                "wasted CPU and terminations must appear together"
+            )
+            if r.lo_terminated:
+                seen_termination = True
+                assert r.wasted_cpu >= r.lo_terminated, (
+                    "a terminated job executed at least one tick"
+                )
+    assert seen_termination, "no terminations observed; test proves nothing"
+
+
+def test_jnc_accounts_for_every_job_that_delivered_no_result():
+    """JNC is measured by difference against a perfect scheduler, not by adding up.
+
+    ``lo_expected`` depends only on the run duration and the tasks' periods, so
+    it cannot drift with anything the scheme did. JNC must therefore equal the
+    ways a job can fail -- abandoned on release, or terminated at its deadline --
+    plus at most one in-flight job per task at the horizon.
+    """
+    for ts in tight_population(4):
+        ladder = build_ladder(ts, [0.0, 0.5, 1.0], drop_policy="shed_early")
+        if ladder is None:
+            continue
+        for seed in range(3):
+            r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=0.2)
+            accounted = r.jne + r.lo_terminated
+            assert accounted <= r.jnc, "JNC must cover every counted failure"
+            assert r.jnc - accounted <= ts.n, (
+                "unaccounted shortfall exceeds the horizon artefact bound"
+            )
+            assert 0.0 <= r.service_ratio <= 1.0
+            assert abs(r.service_ratio * 100 + r.jnc_pct - 100) < 1e-9
 
 
 def test_no_budget_overruns_under_the_admissible_policy(tasksets):

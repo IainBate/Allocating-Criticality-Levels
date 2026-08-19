@@ -83,15 +83,35 @@ def test_returned_drop_set_is_always_feasible(tasksets):
             assert is_feasible(ts, severity_budgets(ts, x), dropped)
 
 
-def test_retained_lo_tasks_meet_their_deadlines(tasksets):
-    """LDM is zero by construction -- the point of the second obligation."""
+def test_clause_2_guarantees_retained_lo_deadlines_when_requested(tasksets):
+    """Clause 2 still does what it claims -- when it is asked for.
+
+    It is off by default now, because under deadline termination a retained
+    LO-criticality job that cannot finish is terminated rather than delivered
+    late, so its deadline is not a safety obligation. Requiring it buys
+    certainty of service, not safety, and costs a great deal of service
+    elsewhere. The obligation itself is unchanged, so it is pinned here.
+    """
     for ts in tasksets:
         for x in SEVERITIES:
-            dropped = drop_set_at_severity(ts, x)
+            dropped = drop_set_at_severity(ts, x, require_lo_deadlines=True)
             budgets = severity_budgets(ts, x)
             for i in range(ts.n):
                 if ts.criticality[i] == "LO" and i not in dropped:
                     assert response_time(ts, i, budgets, dropped) <= ts.D[i]
+
+
+def test_relaxing_clause_2_never_sheds_more(tasksets):
+    """Dropping the service obligation can only shrink the drop set."""
+    strictly_smaller = 0
+    for ts in tasksets:
+        for x in SEVERITIES:
+            strict = drop_set_at_severity(ts, x, require_lo_deadlines=True)
+            relaxed = drop_set_at_severity(ts, x, require_lo_deadlines=False)
+            assert relaxed <= strict, "relaxing an obligation must not shed more"
+            if relaxed < strict:
+                strictly_smaller += 1
+    assert strictly_smaller, "relaxation never helped; the test proves nothing"
 
 
 def test_hi_tasks_meet_their_deadlines_at_every_severity(tasksets):
@@ -188,11 +208,13 @@ def test_utilisation_ordering_matches_the_exhaustive_minimum(small):
         lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
         for x in (0.5, 1.0):
             budgets = severity_budgets(ts, x)
-            greedy = drop_set_at_severity(ts, x, by_utilisation)
+            greedy = drop_set_at_severity(ts, x, by_utilisation,
+                                          require_lo_deadlines=True)
             best = None
             for size in range(len(lo) + 1):
                 for combo in itertools.combinations(lo, size):
-                    if is_feasible(ts, budgets, set(combo)):
+                    if is_feasible(ts, budgets, set(combo),
+                                   require_lo_deadlines=True):
                         best = size
                         break
                 if best is not None:

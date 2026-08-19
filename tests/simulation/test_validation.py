@@ -105,7 +105,7 @@ def test_appendix_a_figure_13_trace():
 
     assert result.nid == 1
     assert result.jne == 3
-    assert result.ldm == 0
+    assert result.lo_terminated == 0
     assert result.hdm == 0
 
 
@@ -245,7 +245,7 @@ def test_reproducible_for_a_given_seed():
     ts = _schedulable_ensemble(u=0.7, count=1, seed0=777)[0]
     a = simulate(ts, duration=100_000, seed=99, fp=1e-2)
     b = simulate(ts, duration=100_000, seed=99, fp=1e-2)
-    assert (a.nid, a.tid, a.jne, a.ldm, a.hdm) == (b.nid, b.tid, b.jne, b.ldm, b.hdm)
+    assert (a.nid, a.tid, a.jne, a.lo_terminated, a.hdm) == (b.nid, b.tid, b.jne, b.lo_terminated, b.hdm)
 
 
 # ---------------------------------------------------------------------------
@@ -278,7 +278,7 @@ def test_ldm_counts_late_lo_jobs():
     )
     result = simulate(ts, duration=1000, seed=1, fp=0.0)
 
-    assert result.ldm > 0, "the LO task has 1.3 total utilisation and must miss deadlines"
+    assert result.lo_terminated > 0, "the LO task has 1.3 total utilisation and must miss deadlines"
     assert result.hdm == 0, "the HI task is the highest priority and always fits"
     assert result.jne == 0, "degraded mode is never entered, so nothing is dropped"
 

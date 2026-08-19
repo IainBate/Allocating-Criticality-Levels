@@ -171,8 +171,8 @@ def main() -> None:
     print("\n--- Summary ---")
     print(f"Rows: {len(df)}")
     summary = (
-        df.groupby(["protocol"])[["nid_pct", "tid_pct", "jne_ldm_pct", "hdm"]]
-        .agg({"nid_pct": "mean", "tid_pct": "mean", "jne_ldm_pct": "mean", "hdm": "sum"})
+        df.groupby(["protocol"])[["nid_pct", "tid_pct", "jnc_pct", "hdm"]]
+        .agg({"nid_pct": "mean", "tid_pct": "mean", "jnc_pct": "mean", "hdm": "sum"})
         .round(6)
     )
     print(summary.to_string())

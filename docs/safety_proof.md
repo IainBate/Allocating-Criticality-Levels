@@ -182,13 +182,15 @@ abandoning releases, AMC-RH is abandoning them too") fails here. Note the
 failure is at **every** tier, not only the lowest, so no per-tier restatement of
 containment survives unconditionally either.
 
-## Corollary 1': Graded JNE
+## Corollary 1': Graded JNC
 
 Let $\ell_i$ be $\tau_i$'s allocated criticality level and let
 $x_{\mathrm{LO}}$ be the deepest rung a LO-criticality task may fire.
 
 **(a) No-fault silence.** If every job complies with $C^{\mathrm{lo}}$, no rung
-fires and JNE $= 0$ — identical to AMC-RH.
+fires and JNC $= 0$ — identical to AMC-RH. (No rung fires, so nothing is
+abandoned on release; and the task set is normal-mode schedulable, so nothing
+reaches its deadline incomplete and nothing is terminated.)
 
 *Proof*: property **(C)** extended to LO-criticality tasks. Every threshold
 $R_i(\chi) \geq R_i(\mathrm{LO})$, and $R_i(\mathrm{LO})$ is by definition
@@ -207,6 +209,14 @@ $\square$
 
 **(c) Containment above the knob.** For every tier $m \geq x_{\mathrm{LO}}$,
 $$\mathrm{JNE}(\{\tau_j : \ell_j \geq m\}) \leq \mathrm{JNE}_{\text{AMC-RH}}.$$
+
+Stated on JNE, not JNC, and deliberately: the proof is a containment argument
+about the *instants at which releases are abandoned*, which says nothing about
+terminations. Terminations are bounded separately — they can only occur to a
+task the scheme chose to retain and AMC-RH would have abandoned outright, so
+each one displaces a job AMC-RH did not run at all. On JNC the comparison is
+therefore favourable but not provable by containment, and is reported
+empirically.
 
 *Proof*: a task of tier $\geq m$ is abandoned only at a level $x > m \geq
 x_{\mathrm{LO}}$. Rungs deeper than $x_{\mathrm{LO}}$ admit only
@@ -236,6 +246,21 @@ original Corollary 1 is recovered verbatim.
 > it, shed tasks are charged in full. So $x_{\mathrm{LO}}$ appears twice — once
 > as the mechanism's reach, once as the analysis's precision.
 
+> **Measured status.** The mechanism does not currently pay, for a reason worth
+> recording. It fires a rung in order to shed more work, but under the
+> shed-early policy there is a single drop set, so once $L_1$ is entered no
+> deeper rung sheds anything further and escalation has no content. Of 386
+> terminations measured at $U = 0.7$ with tightened deadlines, 376 occurred
+> while the system was *already degraded* and only 10 at $L_0$ — the one state
+> where firing a rung would have changed anything. Enabling
+> $x_{\mathrm{LO}} = 1$ moves the service ratio by under 0.05 percentage points.
+>
+> The mechanism needs *intermediate tiers* — a task retained at $L_1$ and shed
+> only at $L_3$ — and those need progressive shedding, which the single-phase
+> carry-in bound cannot certify (130 of 199 task sets fail). The windowed
+> two-phase analysis is therefore a prerequisite for this mechanism having
+> content, not merely a tightening. Until then $x_{\mathrm{LO}} = 0$.
+
 ## Theorem 3: Schedulability Preservation
 
 The previous statement of this theorem argued that "no LO task experiences
@@ -255,8 +280,24 @@ at severity $\chi_x$ if, charging every task $C_i(\chi_x)$, charging each shed
 task its **carry-in** (below) rather than treating it as absent, and retained
 LO-criticality tasks at $C^{\mathrm{lo}}$:
 
-1. every HI-criticality task $\tau_i$ has $R_i \leq D_i$, and
-2. every retained LO-criticality task $\tau_j \notin S_x$ has $R_j \leq D_j$.
+1. **(constraint)** every HI-criticality task $\tau_i$ has $R_i \leq D_i$; and
+2. **(objective, optional)** every retained LO-criticality task
+   $\tau_j \notin S_x$ has $R_j \leq D_j$.
+
+Clause 1 is what certification requires. Clause 2 is **not a safety obligation**
+under deadline termination (`task_model.tex` §"Deadline Termination"): a
+retained LO-criticality job that cannot finish is discarded at its deadline, so
+it never delivers a late result — it delivers none, which is the same outcome as
+being abandoned on release and is counted identically by JNC. Requiring clause 2
+buys certainty of *service*, not safety, and charges heavily for it: a task that
+cannot be certified must be shed outright, leaving no state between "guaranteed
+to complete" and "never runs". Measured over 199 task sets, enforcing it sheds
+68.3% of LO tasks against 47.6% relaxed — retention 31.7% against 52.4% — with
+identical HI-criticality guarantees.
+
+HI-criticality safety is untouched by the relaxation, and if anything improves:
+a terminated job executes no more than it otherwise would, so interference on
+HI-criticality tasks can only fall.
 
 **Statement**: If every level's drop set is admissible, then at every level no
 HI-criticality job and no *retained* LO-criticality job misses its deadline.
@@ -272,27 +313,35 @@ Clause 1 gives the HI-criticality obligation; clause 2 gives the retained
 LO-criticality obligation. A task in $S_x$ has no deadline obligation: its jobs
 are abandoned on release and count toward JNE, not LDM. $\square$
 
-**Corollary 3.1 (no LDM among retained tasks).** LDM $= 0$ for every *retained*
-LO-criticality task, by clause 2.
+**Corollary 3.1 (no late LO results).** No LO-criticality job ever completes
+after its deadline, for any drop set and any $x_{\mathrm{LO}}$.
 
-> **The previous statement, "LDM $= 0$ by construction", was too strong.** It
-> reasoned that a task in $S_x$ "has no deadline obligation: its jobs are
-> abandoned on release and count toward JNE, not LDM". That holds for jobs
-> released *after* the rung fires. It fails for the job already in flight when
-> it fires: abandonment is on release, so that job runs to completion, and it
-> can miss. This is the same instantaneous-shedding assumption that carry-in
-> corrects on the interference side, surfacing on the deadline side.
->
-> Measured over 60 task sets $\times$ 3 seeds at $f_p = 0.2$ (300k ticks): 23
-> LO-criticality deadline misses, **all 23 on tasks in the drop set**, and
-> **zero on retained tasks**. Clause 2 is therefore exactly sound as stated;
-> only the extrapolation to "no LDM at all" was not. The residual is bounded by
-> the same quantity as the carry-in term — at most one in-flight job per shed
-> task per degradation episode.
+*Proof*: a LO-criticality job still incomplete at its deadline is terminated
+there, so no execution of it exists past that instant. $\square$
 
-So the scheme trades JNE against *severity coverage* plus a bounded LDM
-residual on tasks it has already elected to abandon, not against missed
-deadlines for anything it promised to keep.
+This is now true *by construction* rather than by certification, and it is a
+stronger property than the old clause-2 argument delivered — it holds for shed
+tasks and retained tasks alike, and does not depend on the drop set being
+admissible. It is checked directly against the simulator trace in
+`test_no_lo_job_ever_completes_after_its_deadline`.
+
+> **Two earlier statements were wrong and are withdrawn.** "LDM $= 0$ by
+> construction" reasoned that a task in $S_x$ has no deadline obligation because
+> "its jobs are abandoned on release and count toward JNE, not LDM". That holds
+> for jobs released *after* the rung fires; it fails for the job already in
+> flight when it fires, which runs on. Measured at $f_p = 0.2$ with tightened
+> deadlines: 386 terminations, 298 of them on tasks in the drop set. Second,
+> those events were counted as *deadline misses*. They are not misses — they are
+> deliberate terminations, and framing them as failures obscured that JNE
+> undercounts the real loss.
+
+So the scheme trades JNC against *severity coverage*. JNC — jobs that delivered
+no result, whether abandoned on release or terminated at their deadline — is the
+objective, because JNE alone counts only the first kind and therefore
+undercounts precisely once retained tasks are allowed to fail. All rates are
+reported normalised against the jobs a perfect scheduler would have completed;
+a raw count scales with run length and with the tasks' periods and is not
+comparable across configurations.
 
 **Existence.** An admissible set always exists whenever the task set passes
 AMC-rtb, since $S_x = \mathrm{LO}$ reduces clause 1 to the AMC-rtb HI-mode test

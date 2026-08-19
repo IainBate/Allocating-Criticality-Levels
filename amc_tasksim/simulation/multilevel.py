@@ -17,13 +17,26 @@ Scope of this first implementation, stated rather than discovered later:
   level's own threshold is no longer exceeded) is a reasonable extension,
   deferred rather than guessed at -- see the "Mode Transition Protocol"
   section of task_model.tex, which leaves the choice open explicitly.
-- **Abandonment is on release only**, matching engine.py and the AMC-RH
-  paper's model precisely: a task entering a level's drop set has its
-  *future* releases abandoned; a job already running continues to
-  completion. Consequently WastedCPU is always zero under this engine --
-  the metric describes a job abandoned *mid-execution*, which this
-  abandonment policy never produces. A variant with mid-execution
-  abandonment would need a different policy, not a different measurement.
+- **Abandonment is on release**, matching engine.py and the AMC-RH paper's
+  model: a task entering a level's drop set has its *future* releases
+  abandoned; a job already running continues.
+
+- **A LO-criticality job is terminated at its deadline**, never allowed to
+  complete late -- a late result may be worse than no result. This is the
+  same action two-level AMC already takes when it abandons LO jobs on a mode
+  change; only the moment differs. Two consequences: the objective is JNC
+  (jobs that delivered no result, however they failed to) rather than JNE
+  alone; and WastedCPU is live rather than zero, because terminating at the
+  deadline *does* abandon a job mid-execution, which abandon-on-release never
+  does. An earlier version of this docstring claimed WastedCPU was always
+  zero; that was true only while termination was miscounted as a deadline
+  miss.
+
+- **Metrics are normalised.** A raw count of abandoned jobs scales with the
+  run duration and with the tasks' periods, so it is not comparable across
+  configurations. Every rate is expressed against ``lo_expected``, the jobs a
+  perfect scheduler would have completed, which depends only on the duration
+  and the periods -- see :attr:`MultiLevelResult.service_ratio`.
 - **No skip_quiet.** Exact simulation only. The two-level engine's
   fast-forward has documented preconditions (severity_trigger's own
   soundness argument); extending it to a nested drop-set model is future
@@ -278,14 +291,22 @@ class MultiLevelResult:
             rather than NiD".
         tid: Fraction of duration spent at level >= 1.
         jne: LO-criticality jobs abandoned on release at any level >= 1.
-        ldm: LO-criticality jobs that executed but missed their deadline.
+        lo_terminated: LO-criticality jobs that started executing but were
+            *terminated at their deadline* without completing. Not a deadline
+            miss: a LO-criticality job is never permitted to complete late,
+            because a late result may be worse than no result. Termination is
+            the same action two-level AMC already takes when it abandons a job
+            on a mode change -- only the moment differs.
         hdm: HI-criticality jobs that missed their deadline (should be zero
             for an admissible ladder; nonzero is the signal that it was not).
-        wasted_cpu: Always 0 under this engine's abandon-on-release policy;
-            see the module docstring.
+        wasted_cpu: Execution consumed by jobs that were terminated at their
+            deadline without completing -- work done and thrown away. Non-zero
+            precisely because deadline termination abandons a job
+            *mid-execution*, which abandon-on-release never does.
         hi_releases_per_task: HI-criticality releases per task.
         lo_releases_per_task: LO-criticality releases per task, including
             abandoned ones.
+        lo_completed: LO-criticality jobs that completed within their deadline.
         hi_trigger_events: Releases that drew HI-criticality behaviour.
         level_ticks: Time spent at each level, index 0..k-1; sums to duration.
         duration: Simulation duration.
@@ -296,12 +317,70 @@ class MultiLevelResult:
     level_trans: int = 0
     tid: float = 0.0
     jne: int = 0
-    ldm: int = 0
+    lo_terminated: int = 0
+    lo_completed: int = 0
     hdm: int = 0
     wasted_cpu: int = 0
     hi_releases_per_task: list[int] = field(default_factory=list)
     lo_releases_per_task: list[int] = field(default_factory=list)
     hi_trigger_events: int = 0
+
+    @property
+    def lo_expected(self) -> int:
+        """Jobs a perfect scheduler would have completed: every LO release.
+
+        The reference the objective is measured against. It depends only on the
+        run duration and the tasks' periods, not on anything the scheme did, so
+        it is a fixed denominator that makes runs of different lengths and
+        different task sets comparable.
+        """
+        return sum(self.lo_releases_per_task)
+
+    @property
+    def jnc(self) -> int:
+        """Jobs Not Completed: released in a perfect world, but no result.
+
+        Defined by difference against :attr:`lo_expected` rather than by adding
+        up the ways a job can fail, so it cannot silently omit one. A job fails
+        to complete by being abandoned on release (``jne``), by being terminated
+        at its deadline having run (``lo_terminated``), or by still being in
+        flight when the run ends -- the last is a horizon artefact bounded by
+        the number of tasks, and is why this is not asserted equal to
+        ``jne + lo_terminated``.
+
+        Prefer :attr:`jnc_pct`: a raw count scales with duration and with the
+        tasks' periods, so it is not comparable across configurations.
+        """
+        return self.lo_expected - self.lo_completed
+
+    @property
+    def service_ratio(self) -> float:
+        """Fraction of LO-criticality jobs that delivered a result. 1.0 is perfect."""
+        exp = self.lo_expected
+        return self.lo_completed / exp if exp else 1.0
+
+    @property
+    def jnc_pct(self) -> float:
+        """JNC as a percentage of the jobs a perfect scheduler would have completed."""
+        exp = self.lo_expected
+        return 100.0 * self.jnc / exp if exp else 0.0
+
+    @property
+    def jne_pct(self) -> float:
+        """Jobs abandoned on release, as a percentage of all LO releases."""
+        exp = self.lo_expected
+        return 100.0 * self.jne / exp if exp else 0.0
+
+    @property
+    def lo_terminated_pct(self) -> float:
+        """Jobs terminated at their deadline, as a percentage of all LO releases."""
+        exp = self.lo_expected
+        return 100.0 * self.lo_terminated / exp if exp else 0.0
+
+    @property
+    def wasted_cpu_pct(self) -> float:
+        """Processor time spent on work that was thrown away, as a % of duration."""
+        return 100.0 * self.wasted_cpu / self.duration if self.duration else 0.0
     level_ticks: list[int] = field(default_factory=list)
     duration: int = 0
     budget_overruns: int = 0
@@ -458,12 +537,20 @@ def simulate_multilevel(
             if expired:
                 for job in expired:
                     if job.criticality == "HI":
+                        # A HI-criticality job passing its deadline is a real
+                        # failure of the certification, not a policy action.
                         result.hdm += 1
+                        event = "deadline_miss"
                     else:
-                        result.ldm += 1
+                        # Deliberate: a LO-criticality job is terminated rather
+                        # than allowed to complete late. Whatever it executed
+                        # is wasted, which is what makes wasted_cpu non-zero.
+                        result.lo_terminated += 1
+                        result.wasted_cpu += job.executed
+                        event = "lo_terminated"
                     active.remove(job)
                     if trace is not None:
-                        trace.append((now, "deadline_miss", job.task_id))
+                        trace.append((now, event, job.task_id))
 
         # --- exit (direct, on idle) before releases at `now` ---
         exit_if_idle(now)
@@ -509,6 +596,12 @@ def simulate_multilevel(
             else:
                 if hi_behaviour:
                     result.hi_trigger_events += 1
+                if exec_time == 0 and crit == "LO":
+                    # No work to do, so it has trivially delivered its result at
+                    # its release instant (engine.py treats it the same way).
+                    # It must be counted, or the completion accounting would
+                    # report a shortfall that never happened.
+                    result.lo_completed += 1
                 if exec_time > 0:
                     # Enforced budget is the task's own WCET, never the level's
                     # severity budget. C_i(chi_x) is an *analysis* quantity --
@@ -583,6 +676,8 @@ def simulate_multilevel(
 
         if state.running is not None and state.running.remaining <= 0:
             active.remove(state.running)
+            if state.running.criticality == "LO":
+                result.lo_completed += 1
             if trace is not None:
                 trace.append((state.time, "complete", state.running.task_id))
             state.running = None

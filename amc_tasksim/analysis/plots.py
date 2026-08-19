@@ -40,7 +40,7 @@ PROTOCOL_LABELS = {
 METRICS = [
     ("nid_pct", "NiD (%)", "degraded-mode entries, % of HI-criticality jobs"),
     ("tid_pct", "TiD (%)", "time in degraded mode, % of simulation time"),
-    ("jne_ldm_pct", "JNE (%) + LDM (%)", "LO-criticality jobs not completed, %"),
+    ("jnc_pct", "JNE (%) + LDM (%)", "LO-criticality jobs not completed, %"),
 ]
 
 # ---------------------------------------------------------------------------
@@ -52,13 +52,13 @@ METRICS = [
 PAPER_ABSOLUTE = {
     "nid_pct": (0.008, 0.012, "Section V-E: median 0.01, reflecting FP = 1e-4"),
     "tid_pct": (0.02, 0.04, "Figure 5 axis range"),
-    "jne_ldm_pct": (0.01, 0.02, "Figure 6 axis range"),
+    "jnc_pct": (0.01, 0.02, "Figure 6 axis range"),
 }
 
 # RTAS 2022, Table I: metrics as a percentage of the original AMC+ scheme,
 # non-harmonic periods (the period model this toolkit generates).
 PAPER_TABLE_I = {
-    "amc_rh": {"nid_pct": 19.9, "tid_pct": 4.1, "jne_ldm_pct": 8.7},
+    "amc_rh": {"nid_pct": 19.9, "tid_pct": 4.1, "jnc_pct": 8.7},
 }
 
 PAPER_FP = 1e-4
@@ -226,8 +226,8 @@ def _aggregate(df: pd.DataFrame, protocol: str) -> dict[str, float]:
     return {
         "nid_pct": 100.0 * g["nid"].sum() / max(g["total_hi_releases"].sum(), 1),
         "tid_pct": 100.0 * (g["tid"] * g["duration"]).sum() / max(g["duration"].sum(), 1),
-        "jne_ldm_pct": 100.0
-        * (g["jne"].sum() + g["ldm"].sum())
+        "jnc_pct": 100.0
+        * (g["jne"].sum() + g["lo_terminated"].sum())
         / max(g["total_lo_releases"].sum(), 1),
         "hdm": float(g["hdm"].sum()),
         "hi_behaviour_jobs": float(g["hi_trigger_events"].sum()),
@@ -389,11 +389,11 @@ def _write_validation_report(df: pd.DataFrame) -> str:
             if base_agg and p != "original_amc":
                 rel = " / ".join(
                     f"{100.0 * agg[m] / base_agg[m]:.1f}%" if base_agg[m] else "—"
-                    for m in ("nid_pct", "tid_pct", "jne_ldm_pct")
+                    for m in ("nid_pct", "tid_pct", "jnc_pct")
                 )
             lines.append(
                 f"| {PROTOCOL_LABELS.get(p, p)} | {agg['nid_pct']:.5f} | {agg['tid_pct']:.5f} "
-                f"| {agg['jne_ldm_pct']:.5f} | {int(agg['hdm'])} | {rel} |"
+                f"| {agg['jnc_pct']:.5f} | {int(agg['hdm'])} | {rel} |"
             )
 
     lines += [
@@ -436,7 +436,7 @@ def _write_summary(df: pd.DataFrame, paths: dict[str, str]) -> str:
         agg = _aggregate(df, p)
         lines.append(
             f"| {PROTOCOL_LABELS.get(p, p)} | {agg['nid_pct']:.5f} | {agg['tid_pct']:.5f} "
-            f"| {agg['jne_ldm_pct']:.5f} | {int(agg['hdm'])} | {int(agg['hi_behaviour_jobs']):,} |"
+            f"| {agg['jnc_pct']:.5f} | {int(agg['hdm'])} | {int(agg['hi_behaviour_jobs']):,} |"
         )
 
     thin = (

@@ -10,29 +10,73 @@ This document extends the metrics from AMC-RH to support multi-level degradation
 |--------|---------|----------------|
 | **NiD** | $\sum_{t} \Ind[\text{mode}(t-1) = L_0 \wedge \text{mode}(t) \neq L_0]$ | Number of degraded mode entries |
 | **TiD** | $\frac{1}{T} \int_0^T \Ind[\text{mode}(t) \neq L_0] \, dt$ | Fraction of time in degraded mode |
-| **JNE** | $\sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty} \Ind[\text{job } j \text{ of } \tau_i \text{ dropped}]$ | LO jobs not executed |
-| **LDM** | $\sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty} \Ind[\text{job } j \text{ misses deadline in degraded}]$ | Late LO jobs in degraded mode |
-| **HDM** | $\sum_{i \in \tau^{\mathrm{HI}}} \sum_{j=1}^{\infty} \Ind[\text{job } j \text{ misses deadline}]$ | HI jobs missing deadlines |
+| **JNE** | $\sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty} \Ind[\text{job } j \text{ of } \tau_i \text{ abandoned on release}]$ | LO jobs never executed |
+| **HDM** | $\sum_{i \in \tau^{\mathrm{HI}}} \sum_{j=1}^{\infty} \Ind[\text{job } j \text{ misses deadline}]$ | HI jobs missing deadlines — a certification failure |
+
+> **LDM is gone.** A LO-criticality job that has not completed at its deadline is
+> *terminated* there, never allowed to complete late (`task_model.tex`
+> §"Deadline Termination"), so a LO-criticality deadline miss is impossible by
+> construction. What used to be counted as LDM is a deliberate policy action and
+> is counted below as `Terminated`, feeding JNC — not as a failure.
+
+## Primary Objective: Jobs Not Completed (JNC)
+
+JNE alone is the wrong objective once retained LO tasks are permitted to fail:
+it counts only jobs that never ran, and silently omits every job that ran and
+was then thrown away. Measure the shortfall against a fixed reference instead.
+
+Let $\mathrm{Exp}$ be the LO-criticality jobs a *perfect* scheduler would have
+completed over a run of length $H$ — a function of $H$ and the periods alone,
+so independent of anything the scheme did — and $\mathrm{Comp}$ those that
+actually completed within their deadlines:
+
+$$
+\mathrm{Exp} = \sum_{i \in \tau^{\mathrm{LO}}} \left| \{\, \phi_i + m T_i < H \,\} \right|,
+\qquad
+\mathrm{JNC} = \mathrm{Exp} - \mathrm{Comp}
+= \underbrace{\mathrm{JNE}}_{\text{never ran}} + \underbrace{\mathrm{Terminated}}_{\text{ran, discarded}} + \varepsilon
+$$
+
+where $\varepsilon$ is at most one in-flight job per task at the horizon.
+Defining JNC by *difference* rather than by summing failure modes is deliberate:
+it cannot silently omit one.
+
+## Normalisation
+
+**Every metric is reported normalised.** A raw count scales with both the run
+length and the tasks' periods, so raw JNE is not comparable between task sets or
+between experiments of different duration:
+
+$$
+\mathrm{JNC\%} = 100 \cdot \frac{\mathrm{JNC}}{\mathrm{Exp}}, \qquad
+\mathrm{JNE\%} = 100 \cdot \frac{\mathrm{JNE}}{\mathrm{Exp}}, \qquad
+\mathrm{WastedCPU\%} = 100 \cdot \frac{\mathrm{WastedCPU}}{H}
+$$
 
 ## New Metrics for Multi-Level
 
 ### Wasted CPU
-Measures CPU cycles spent on LO tasks that were later abandoned:
+Processor time spent on work that was thrown away:
 
 $$
-\mathrm{WastedCPU} = \sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty} 
-\left( \min(\text{executed}_{ij}, C_i^{\mathrm{lo}}) \cdot \Ind[\text{job } j \text{ abandoned}] \right)
+\mathrm{WastedCPU} = \sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty}
+\left( \text{executed}_{ij} \cdot \Ind[\text{job } j \text{ terminated at its deadline}] \right)
 $$
 
-Where $\text{executed}_{ij}$ is the execution time consumed before abandonment.
+Abandonment *on release* never contributes here — such a job executes nothing.
+The metric is live only because of deadline termination, which abandons a job
+*mid-execution*. It was zero by construction before termination was introduced.
 
 ### Service Ratio
-Fraction of LO-criticality work that completes successfully:
+Fraction of LO-criticality jobs that delivered a result:
 
 $$
-\mathrm{ServiceRatio} = \frac{\sum_{i \in \tau^{\mathrm{LO}}} (\text{releases}_i - \text{drops}_i)}{\sum_{i \in \tau^{\mathrm{LO}}} \text{releases}_i}
-= 1 - \frac{\text{JNE}}{\text{Total LO releases}}
+\mathrm{ServiceRatio} = \frac{\mathrm{Comp}}{\mathrm{Exp}} = 1 - \frac{\mathrm{JNC}}{\mathrm{Exp}}
 $$
+
+Note this is **not** $1 - \mathrm{JNE}/\mathrm{Exp}$, which was the earlier
+definition: that counts a job as served if it was allowed to start, even if it
+was later discarded having produced nothing.
 
 ### Level Transition Count
 Number of times the system changes degradation levels:
@@ -47,7 +91,7 @@ This penalizes excessive mode oscillation.
 
 ### Candidate 1: Weighted Cost Minimization
 $$
-\Phi_1 = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
+\Phi_1 = \alpha \cdot \E[\mathrm{JNC}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
 $$
 
 **Properties**:
@@ -57,7 +101,7 @@ $$
 
 ### Candidate 2: Service Maximization
 $$
-\Phi_2 = \E[\mathrm{ServiceRatio}] - \alpha \cdot \E[\mathrm{JNE}] - \beta \cdot \E[\mathrm{TiD}]
+\Phi_2 = \E[\mathrm{ServiceRatio}] - \alpha \cdot \E[\mathrm{JNC}] - \beta \cdot \E[\mathrm{TiD}]
 $$
 
 **Properties**:
@@ -67,7 +111,7 @@ $$
 
 ### Candidate 3: Multi-Objective Pareto Front
 Represent the solution as a set of non-dominated points across:
-- $\E[\mathrm{JNE}]$
+- $\E[\mathrm{JNC}]$
 - $\E[\mathrm{TiD}]$
 - $\E[\mathrm{WastedCPU}]$
 
@@ -81,7 +125,7 @@ Represent the solution as a set of non-dominated points across:
 We recommend **$\Phi_1$ with adaptive weights, plus a churn term**:
 
 $$
-\Phi = \alpha(U) \cdot \E[\mathrm{JNE}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{LevelTrans}]
+\Phi = \alpha(U) \cdot \E[\mathrm{JNC}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{LevelTrans}]
 $$
 
 Where weights adapt to total utilisation $U$:
@@ -95,7 +139,7 @@ Where weights adapt to total utilisation $U$:
 TiD measures total *duration* in a degraded state; it says nothing about
 *frequency*. A severity ladder with poorly spaced thresholds can oscillate
 across a boundary -- entering and leaving a level repeatedly with short dwell
-times each visit -- while keeping both JNE and TiD low, because each excursion
+times each visit -- while keeping both JNC and TiD low, because each excursion
 is brief. Nothing else in $\Phi$ penalises that, so nothing steers the
 optimiser away from it.
 
@@ -115,7 +159,7 @@ same eventual severity through more, finer-grained levels costs more
 transition *events* than reaching it through one big step. This is not a flaw
 to correct — it is the real price of grading the response, and $\Phi$ should
 charge for it rather than assume finer granularity is free. It does mean a
-larger $k$ needs a strictly better JNE/TiD/WastedCPU trade to win on $\Phi$
+larger $k$ needs a strictly better JNC/TiD/WastedCPU trade to win on $\Phi$
 overall, which is the correct comparison to make.
 
 NiD remains a **reported** metric (Table above) for direct comparison against
@@ -132,11 +176,11 @@ $\Phi$ once LevelTrans is included.
 
 ## "Meaningful Improvement" Criteria
 
-### Criterion 1: Service Preservation (Monotonic JNE)
+### Criterion 1: Service Preservation (Monotonic JNC)
 
 For any task set $\tau$ and configuration with $k \geq 2$ levels:
 $$
-\E[\mathrm{JNE}_k(\tau)] \leq \E[\mathrm{JNE}_{k-1}(\tau)]
+\E[\mathrm{JNC}_k(\tau)] \leq \E[\mathrm{JNC}_{k-1}(\tau)]
 $$
 
 **Interpretation**: Adding a degradation level should never increase lost LO work for any task set.
@@ -154,16 +198,16 @@ def validate_service_preservation(taskset):
 
 For any task set $\tau$ and configuration with $k \geq 2$ levels:
 $$
-\E[\mathrm{WastedCPU}_k + \mathrm{JNE}_k] \leq 
-\E[\mathrm{WastedCPU}_{k-1} + \mathrm{JNE}_{k-1}]
+\E[\mathrm{WastedCPU}_k + \mathrm{JNC}_k] \leq
+\E[\mathrm{WastedCPU}_{k-1} + \mathrm{JNC}_{k-1}]
 $$
 
 **Interpretation**: Total "bad" work (wasted CPU cycles + dropped jobs) should not increase when adding levels.
 
 **Equivalently**:
 $$
-\E[\mathrm{WastedCPU}_k] - \E[\mathrm{WastedCPU}_{k-1}] \leq 
-\E[\mathrm{JNE}_{k-1}] - \E[\mathrm{JNE}_k]
+\E[\mathrm{WastedCPU}_k] - \E[\mathrm{WastedCPU}_{k-1}] \leq
+\E[\mathrm{JNC}_{k-1}] - \E[\mathrm{JNC}_k]
 $$
 
 The reduction in dropped jobs should at least offset any increase in wasted cycles.
@@ -175,7 +219,7 @@ def validate_waste_reduction(taskset):
     jne_k = simulate_multi_level(taskset, k_levels).jne
     wasted_km1 = simulate_multi_level(taskset, k-1_levels).wasted_cpu
     jne_km1 = simulate_multi_level(taskset, k-1_levels).jne
-    
+
     total_bad_k = wasted_k + jne_k
     total_bad_km1 = wasted_km1 + jne_km1
     return total_bad_k <= total_bad_km1 + epsilon
@@ -198,17 +242,17 @@ Approach" above (weights adapt to $U$ per the table there; not repeated here).
 def validate_statistical_improvement(gen_distribution, k_levels, n_samples=1000):
     phi_k_sum = 0
     phi_km1_sum = 0
-    
+
     for _ in range(n_samples):
         taskset = gen_distribution.sample()
         phi_k = compute_objective(simulate_multi_level(taskset, k_levels))
         phi_km1 = compute_objective(simulate_multi_level(taskset, k-1_levels))
         phi_k_sum += phi_k
         phi_km1_sum += phi_km1
-    
+
     mu_k = phi_k_sum / n_samples
     mu_km1 = phi_km1_sum / n_samples
-    
+
     # t-test for H0: mu_k >= mu_km1 vs H1: mu_k < mu_km1
     return mu_k < mu_km1 - epsilon  # Require meaningful gap
 ```
@@ -217,7 +261,7 @@ def validate_statistical_improvement(gen_distribution, k_levels, n_samples=1000)
 
 ### Step 1: Single-Task Set Verification
 For a specific task set $\tau$:
-1. Compute JNE, TiD, WastedCPU for $k=2,3,4,5$
+1. Compute JNC, TiD, WastedCPU (all normalised) for $k=2,3,4,5$
 2. Verify monotonicity: each metric decreases or stays same as $k$ increases
 3. Record whether all three criteria are satisfied
 

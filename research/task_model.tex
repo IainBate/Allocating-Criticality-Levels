@@ -59,14 +59,25 @@ cosmetic:
   $x_{\mathrm{LO}}$ bounding how deep a LO-criticality task may reach. This
   detects overruns that the two-level trigger provably cannot see, at the cost
   of a containment guarantee that must be restated rather than assumed.
+\item \emph{Deadline termination} and the JNC objective
+  (\Cref{sec:termination,sec:objective}). A LO-criticality job that cannot
+  finish in time is discarded at its deadline rather than allowed to complete
+  late, since a stale result may be worse than none. This removes the
+  LO-criticality deadline obligation entirely -- there is nothing left to miss
+  -- which turns clause 2 of the admissibility criterion from a constraint into
+  an objective and raises LO-criticality retention from $31.7\%$ to $52.4\%$
+  with no change to HI-criticality safety.
 \end{enumerate}
 
-The most consequential finding is negative, and is stated in
-\Cref{sec:admissibility}: once shedding is charged honestly, \emph{progressive}
-shedding cannot be certified on $47\%$ of an otherwise schedulable population,
-while shedding the same tasks at the shallowest rung is always certifiable and
-never sheds more. Grading therefore belongs in the budgets, not in the drop
-sets.
+Two findings are consequential and negative, and are reported as such.
+\emph{Progressive} shedding cannot be certified on $47\%$ of an otherwise
+schedulable population once shedding is charged honestly, while shedding the
+same tasks at the shallowest rung is always certifiable and never sheds more
+(\Cref{sec:admissibility}); grading therefore belongs in the budgets, not the
+drop sets. And the generalised trigger, though it targets a blind spot that
+swallows $87$--$89\%$ of all overruns, changes the service ratio by under
+$0.05$ percentage points, because a single drop set leaves escalation with
+nothing further to shed (\Cref{sec:transition}).
 
 The model builds upon the foundational work presented in~\cite{9804600}.
 
@@ -158,18 +169,17 @@ admissibility criterion of \Cref{sec:admissibility} yields exactly two
 \emph{minimal} admissible drop sets:
 
 \[
-\{\tau_4, \tau_6\} \;\text{(keeping } \tau_5\text{)}
+\{\tau_4\} \;\text{(keeping } \tau_5, \tau_6\text{)}
 \qquad\text{and}\qquad
-\{\tau_5, \tau_6\} \;\text{(keeping } \tau_4\text{)} .
+\{\tau_5\} \;\text{(keeping } \tau_4, \tau_6\text{)} .
 \]
 
-Two-level AMC sheds all three. The graded scheme can keep one -- but
-\emph{which} one is not a question the analysis answers: both choices are
+Two-level AMC sheds all three. The graded scheme can keep two -- but
+\emph{which} two is not a question the analysis answers: both choices are
 equally safe, and both retain the same number of tasks. $\tau_4$ and $\tau_5$
 are interchangeable to response-time analysis and are not interchangeable to
 the application. The shedding heuristics of \Cref{sec:admissibility} disagree
-accordingly: ordering by utilisation or by execution time keeps $\tau_4$,
-ordering by priority keeps $\tau_5$.
+accordingly.
 
 This is the gap an \emph{allocated criticality level} fills. Response-time
 analysis certifies that a set is safe to shed; it cannot rank the safe sets.
@@ -594,54 +604,38 @@ executes beyond $C_i^{\mathrm{lo}}$ and still completes before
 $R_i^{\mathrm{lo}}$. At $f_p = 0.2$ that is $129{,}874$ undetected overruns out
 of $145{,}769$.
 
-It does not follow that the mechanism pays. Enabling $x_{\mathrm{LO}} = 1$ over
-the same population adds only $0.3\%$ more level entries and $0.3\%$ more JNE,
-and reduces LO-criticality deadline misses by \emph{none}. The reason is that
-clause 2 of \Cref{sec:admissibility} already discharges what the mechanism was
-designed to deliver: a retained LO-criticality task is guaranteed its deadline,
-so it has nothing to be rescued from. Consistently, a retained LO-criticality
-task has a median $87.2\%$ of its deadline still remaining at the instant it
-first becomes eligible to fire a rung, so it essentially never does.
+It does not follow that the mechanism pays, and measured over the same
+population it does not: enabling $x_{\mathrm{LO}} = 1$ changes the service
+ratio by less than $0.05$ percentage points and adds $20$ level entries in
+$12{,}714$. The reason is specific and worth stating, because it is not the
+reason one would guess.
 
-\textbf{The redundancy is structural, not incidental.} Under clause 2 the
-mechanism can have no customer at all, by the following argument.
+\textbf{Why it does not engage.} A LO-criticality task fires a rung in order to
+\emph{shed more work}. Under the shed-early policy that \Cref{sec:admissibility}
+concludes is the only certifiable one, there is a single drop set: every rung
+sheds the same tasks. Once $L_1$ has been entered there is nothing further any
+deeper rung can shed, so escalating has no content. And escalation is almost
+always already under way -- of $386$ terminations measured at $U = 0.7$ with
+deadlines tightened to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$,
+$376$ occurred while the system was \emph{already degraded} and only $10$ at
+$L_0$, the one state in which firing a rung would have changed anything.
 
-\begin{enumerate}
-\item A \emph{retained} LO-criticality task is one the analysis has certified
-  meets its deadline at every level with the drop set applied. It is therefore
-  never in danger at $L_1, \dots, L_{k-1}$, so it never needs to demand a
-  deeper level for its own protection.
-\item A task that \emph{is} in danger is, by clause 2, shed rather than
-  retained -- shedding is precisely the analysis's response to a task it cannot
-  certify.
-\item A shed task has $\ell_i < x$ for every rung $x$ that could help it, and
-  the trigger rule admits $\tau_i$ to rung $x$ only when $\ell_i \geq x$. Under
-  the shed-early policy of \Cref{sec:admissibility} every shed task has
-  $\ell_i = 0$ and is admitted to no rung whatsoever. A task may not demand its
-  own abandonment.
-\end{enumerate}
+Of those $386$, $298$ fell on tasks in the drop set -- in-flight jobs not
+abandoned because abandonment is on release -- and $88$ on retained tasks.
+The $88$ are the mechanism's entire addressable population, against a JNE loss
+of $11.0\%$ of all jobs in the same configuration. Even captured perfectly it
+would be a second-order effect.
 
-So no task is simultaneously \emph{permitted} to use the mechanism and
-\emph{in need} of it. The measurements agree exactly: over 40 task sets with
-deadlines tightened to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$ at
-$U = 0.7$, $f_p = 0.2$, all $690$ LO-criticality deadline misses fell on shed
-tasks and $0$ on retained tasks. Tightening deadlines does not help, because it
-selects \emph{for} slack among the survivors: any task tight enough to be at
-risk is shed rather than retained.
-
-The one gap in the argument is $L_0$, which clause 2 does not cover -- a
-retained task can in principle be endangered there by an undetected overrun,
-and this is the only place the mechanism could act. Empirically it never is:
-the median retained LO-criticality task still has $88$--$96\%$ of its deadline
-remaining when it first becomes eligible to fire.
-
-\textbf{Consequence.} Mechanism~2 is worth having only if clause 2 is weakened
-so that lower-ranked \emph{retained} tasks may miss -- creating a third state
-between protected and abandoned, and with it a population of tasks that are
-both permitted to trigger and in need of doing so. Under clause 2 as stated,
+\textbf{What would make it work.} The mechanism needs \emph{intermediate
+tiers}: a task retained at $L_1$ and shed only at $L_3$ is one that escalation
+can actually do something about. Intermediate tiers require progressive
+shedding, which the single-phase carry-in bound of \Cref{sec:shed-aware} cannot
+certify -- $130$ of $199$ task sets fail it, for the reason given in
+\Cref{sec:admissibility}. The windowed two-phase analysis noted there as the
+natural next step is therefore not merely a tightening: it is the prerequisite
+for this mechanism having any content at all. Until it exists,
 $x_{\mathrm{LO}}$ should be left at $0$, and the generalised trigger retained in
-the model as the mechanism that a weakened clause 2 would activate rather than
-as a present improvement.
+the model as the mechanism that certifiable intermediate tiers would activate.
 
 The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
 $R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
@@ -666,14 +660,42 @@ LO-criticality task at $C_i^{\mathrm{lo}}$:
   $R_j \leq D_j$.
 \end{enumerate}
 
-Clause 2 is what makes LDM (LO jobs that miss their deadline in degraded mode)
-zero for any \emph{retained} task. Simulation confirms it exactly: over 60 task
-sets $\times$ 3 seeds at $f_p = 0.2$, all 23 LO-criticality deadline misses fell
-on tasks \emph{in} the drop set and none on a retained task. The residual is
-the counterpart of carry-in on the deadline side -- a job of a shed task
-already in flight when its rung fires is not abandoned, so it runs and may
-miss. Claiming LDM is zero outright, as an earlier version of this analysis
-did, overstates the guarantee by exactly that bounded term. An admissible set always exists
+\textbf{Clause 1 is a constraint; clause 2 is an objective.} Clause 1 is what
+certification requires and is always enforced. Clause 2 is not a safety
+obligation at all under \Cref{sec:termination}: a retained LO-criticality job
+that cannot finish is terminated at its deadline, so it never delivers a late
+result -- it delivers none, which is the same outcome as being abandoned on
+release and is counted identically by JNC. Requiring clause 2 therefore buys
+\emph{certainty of service}, not safety.
+
+It charges heavily for that certainty. A task the analysis cannot certify must
+be shed outright, so every LO-criticality task is either guaranteed to complete
+or never runs, with nothing in between -- and it is the state in between where
+graded criticality actually lives. Over 199 non-trivial AMC-rtb-schedulable
+task sets ($n=12$, $U=0.7$, $CF=2$), shedding at the shallowest rung with
+carry-in charged:
+
+\begin{table}[h]
+\centering
+\caption{Cost of enforcing clause 2}
+\label{tab:clause2}
+\begin{tabular}{lcc}
+\toprule
+Clause 2 & LO tasks shed & LO tasks retained \\
+\midrule
+enforced          & 68.3\%  & 31.7\% \\
+relaxed (default) & \textbf{47.6\%}  & \textbf{52.4\%} \\
+\midrule
+classic two-level & 100.0\% & 0.0\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent Relaxing it raises retention from $31.7\%$ to $52.4\%$ at no cost in
+HI-criticality safety, because clause 1 is untouched and a terminated job
+executes no more than it otherwise would.
+
+An admissible set always exists
 whenever the task set passes AMC-rtb (\Cref{sec:amc-rtb}): $S_x = \tau^{\mathrm{LO}}$
 reduces clause 1 to the AMC-rtb HI-mode test and vacates clause 2, recovering
 the classic two-level scheme exactly. So the question a drop policy answers is
@@ -783,6 +805,121 @@ For LO-criticality tasks $C_i^{\mathrm{hi}} = C_i^{\mathrm{lo}}$, so this is a
 real cap on them and a defensive one on HI-criticality tasks, matching the
 two-level model exactly.
 
+\subsection{Deadline Termination}
+\label{sec:termination}
+
+A LO-criticality job that has not completed when its deadline arrives is
+\emph{terminated}, not permitted to run on and complete late:
+\[
+\text{job } J_{i,q} \text{ of } \tau_i \in \tau^{\mathrm{LO}}
+\text{ released at } r \text{ is discarded at } r + D_i \text{ if incomplete.}
+\]
+
+This is not a weakening of the timing guarantees; it is what makes them
+meaningful. A late result from a control or monitoring task may be worse than
+no result at all -- it is delivered into a system state it no longer describes.
+Terminating is exactly the action two-level AMC already takes when it abandons
+LO-criticality jobs on a mode change; only the moment differs, and the moment
+is chosen so that the job never produces output it should not.
+
+Three consequences follow, and \Cref{sec:objective} builds on all three.
+\begin{enumerate}
+\item \textbf{A LO-criticality deadline miss becomes impossible by
+  construction.} There is nothing left to certify about a retained
+  LO-criticality task's deadline, which is why clause 2 of
+  \Cref{sec:admissibility} is an objective rather than a constraint.
+\item \textbf{HI-criticality safety is untouched, and if anything improves.} A
+  terminated job executes no more than it otherwise would, so the interference
+  a HI-criticality task suffers can only fall. Clause 1 is unchanged.
+\item \textbf{Processor time can now be wasted.} A terminated job consumed
+  execution that produced nothing. Abandonment on release never does this --
+  it never abandons a job \emph{mid-execution} -- so WastedCPU was previously
+  zero by construction and is now a live quantity.
+\end{enumerate}
+
+\subsection{Objective: Jobs Not Completed}
+\label{sec:objective}
+
+The quantity to minimise is the work the system failed to deliver, however it
+failed. Let $\mathrm{Exp}$ be the number of LO-criticality jobs a perfect
+scheduler would have completed over a run of length $H$ -- a function of $H$
+and the periods alone, and so independent of anything the scheme did:
+\[
+\mathrm{Exp} = \sum_{\tau_i \in \tau^{\mathrm{LO}}} \left| \{\, r = \phi_i + m T_i \;:\; m \in \N,\; r < H \,\} \right| .
+\]
+Let $\mathrm{Comp}$ be the jobs that actually completed within their deadlines.
+Then
+\[
+\mathrm{JNC} = \mathrm{Exp} - \mathrm{Comp},
+\qquad
+\mathrm{ServiceRatio} = \frac{\mathrm{Comp}}{\mathrm{Exp}} .
+\]
+
+Defining JNC by \emph{difference} against a fixed reference, rather than by
+summing the ways a job can fail, is deliberate: it cannot silently omit a
+failure mode. A job delivers no result by being abandoned on release (JNE), or
+by being terminated at its deadline having run -- and JNE alone, the metric the
+two-level literature reports, counts only the first. It therefore
+\emph{undercounts} once retained tasks are allowed to fail, which is precisely
+the regime this model introduces.
+
+\textbf{All metrics are reported normalised.} A raw count of abandoned jobs
+scales with both the run length and the tasks' periods, so raw JNE is not
+comparable between task sets or between experiments of different duration.
+Every rate below is a percentage of $\mathrm{Exp}$; WastedCPU is a percentage
+of $H$.
+
+\section{Measured Performance}
+\label{sec:results}
+
+Service ratio against the two-level AMC-RA baseline on the same task sets,
+arrival sequences and execution times. $k = 4$ with trigger severities
+$(0, 0.5, 1)$, shed-early drop sets, $x_{\mathrm{LO}} = 0$, $f_p = 0.2$,
+$200{,}000$ ticks $\times$ 3 seeds, 25 task sets per row. \emph{Tight} deadlines
+are pulled down to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$, which
+preserves normal-mode schedulability exactly while removing most of the slack.
+
+\begin{table}[h]
+\centering
+\caption{Service ratio, graded scheme against two-level AMC}
+\label{tab:results}
+\begin{tabular}{llccccc}
+\toprule
+$U$ & $D_i$ & Graded & Two-level & JNE\% & Term.\% & Waste\% \\
+\midrule
+0.70 & implicit & \textbf{0.9701} & 0.9343 & 2.96 & 0.01 & 0.00 \\
+0.70 & tight    & \textbf{0.8871} & 0.8371 & 11.02 & 0.24 & 0.17 \\
+0.85 & implicit & \textbf{0.8911} & 0.8545 & 10.80 & 0.03 & 0.02 \\
+0.85 & tight    & 0.6702 & \textbf{0.6727} & 32.75 & 0.21 & 0.32 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent No HI-criticality deadline was missed in any configuration, as
+clause 1 requires.
+
+Three things are worth reading off this table rather than asserting.
+
+\textbf{The gain is real but modest}: $3.6$ to $5.0$ percentage points of
+service ratio in the first three rows. That is the honest size of the effect
+once shedding is charged its carry-in, and it is well below what the
+instantaneous-shedding analysis implied.
+
+\textbf{The hardest configuration is a loss.} At $U = 0.85$ with tight
+deadlines the graded scheme is marginally \emph{worse} than two-level AMC
+($0.6702$ against $0.6727$). Retaining LO-criticality work means absorbing
+interference, and where almost a third of jobs are being shed anyway there is
+no headroom left to pay for it. The scheme should not be recommended
+unconditionally.
+
+\textbf{Termination and waste are second-order.} Terminations never exceed
+$0.24\%$ of jobs and wasted processor time never exceeds $0.32\%$ of the run.
+The dominant loss is JNE throughout -- jobs abandoned on release because they
+are in the drop set. Any further improvement therefore has to come from
+shedding \emph{fewer} tasks, not from managing the ones that are retained: this
+is the quantitative reason \Cref{sec:transition} concludes that the generalised
+trigger cannot pay in its present form.
+
 \section{Notation Summary}
 
 \begin{table}[h]
@@ -811,6 +948,9 @@ $S_x$ & Drop set at level $L_x$ (Section~\ref{sec:admissibility}) \\
 $\ell_i$ & Allocated criticality level of task $i$ (Section~\ref{sec:criticality-levels}) \\
 $R_i(\chi, S, s)$ & Shed-aware response time (Section~\ref{sec:shed-aware}) \\
 $x_{\mathrm{LO}}$ & Deepest rung a LO-criticality task may fire (Section~\ref{sec:transition}) \\
+$\mathrm{Exp}$ & LO jobs a perfect scheduler would complete (Section~\ref{sec:objective}) \\
+$\mathrm{JNC}$ & Jobs Not Completed, $\mathrm{Exp} - \mathrm{Comp}$ (Section~\ref{sec:objective}) \\
+$\mathrm{ServiceRatio}$ & $\mathrm{Comp}/\mathrm{Exp}$ (Section~\ref{sec:objective}) \\
 $FP = 1/N$ & HI-behaviour probability per job \\
 $\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
 $L_x$ & Degradation level $x$ ($0 \leq x < k$) \\

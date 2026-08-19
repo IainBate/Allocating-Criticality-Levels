@@ -6,12 +6,27 @@ keep. Response-time analysis at the degraded budget does have that ability: at
 severity ``x``, charge every task ``C_i(x)`` and ask which LO-criticality tasks
 can be retained while
 
-1. every HI-criticality task still meets its deadline, and
-2. every *retained* LO-criticality task still meets its deadline.
+1. every HI-criticality task still meets its deadline (**clause 1**), and
+2. every *retained* LO-criticality task still meets its deadline (**clause 2**).
 
-Both are decidable at design time, so the drop set is derived rather than
-guessed -- and the second obligation makes retained LO jobs miss no deadlines
-*by construction*, so there is no JNE-against-LDM trade-off to measure.
+Clause 1 is the certification constraint and is always enforced. Clause 2 is
+off by default (``require_lo_deadlines``), because under deadline termination a
+retained LO-criticality job that cannot finish is terminated rather than
+delivered late -- so its deadline is not a safety obligation, and requiring it
+buys certainty of service rather than safety. It charges heavily for that
+certainty: a task that cannot be certified must be shed outright, leaving no
+state between "guaranteed to complete" and "never runs".
+
+Measured over 199 non-trivial AMC-rtb-schedulable task sets (n=12, U=0.7,
+CF=2.0), shedding at the shallowest rung with carry-in charged:
+
+==================  ===============  =================
+Clause 2            LO tasks shed    LO tasks retained
+==================  ===============  =================
+enforced                     68.3%              31.7%
+relaxed (default)            47.6%              52.4%
+two-level AMC               100.0%               0.0%
+==================  ===============  =================
 
 Carry-in: what a shed task still costs
 --------------------------------------
@@ -151,21 +166,41 @@ def is_feasible(
     budgets: list[int],
     dropped: set[int],
     carry_in_for: Optional[Callable[[int], dict[int, float]]] = None,
+    require_lo_deadlines: bool = False,
 ) -> bool:
-    """Whether both deadline obligations hold for this drop set.
+    """Whether the level's deadline obligations hold for this drop set.
 
-    Every HI-criticality task and every *retained* LO-criticality task must meet
-    its deadline. A shed task has no obligation -- its jobs are abandoned on
-    release, which counts toward JNE, not toward a deadline miss.
+    **Clause 1** -- every HI-criticality task meets its deadline -- is the
+    certification constraint and is always checked.
+
+    **Clause 2** -- every *retained* LO-criticality task meets its deadline --
+    is controlled by ``require_lo_deadlines`` and defaults to **off**, because
+    under deadline termination it is not a safety obligation. A LO-criticality
+    job that cannot finish in time is terminated at its deadline rather than
+    allowed to complete late, so it never delivers a late result; it delivers
+    none, which is the same outcome as being abandoned on release and is
+    counted the same way (JNC). Two-level AMC already takes exactly this action
+    when it abandons LO jobs on a mode change -- only the moment differs.
+
+    Requiring clause 2 therefore buys no safety. What it buys is certainty of
+    *service*, and it charges heavily: a task that cannot be certified must be
+    shed outright, so every LO task is either "guaranteed to complete" or
+    "never runs", with nothing between. Leaving it off admits the third state --
+    retained, allowed to run, terminated if it cannot finish -- which is where
+    graded criticality levels actually live, and without which the intermediate
+    tiers collapse.
 
     Args:
         carry_in_for: Given the index of the task under analysis, the shed
             instants to charge (see :func:`response_time`). ``None`` keeps the
             optimistic instantaneous-shedding assumption.
+        require_lo_deadlines: Enforce clause 2 as well, reproducing the earlier
+            and stricter criterion.
     """
     for i in range(taskset.n):
-        if taskset.criticality[i] == "LO" and i in dropped:
-            continue
+        if taskset.criticality[i] == "LO":
+            if i in dropped or not require_lo_deadlines:
+                continue
         carry_in = carry_in_for(i) if carry_in_for is not None else None
         if response_time(taskset, i, budgets, dropped, carry_in) > taskset.D[i]:
             return False
@@ -212,6 +247,7 @@ def drop_set_at_severity(
     ordering: Ordering = by_utilisation,
     charge_carry_in: bool = False,
     lo_may_trigger: bool = False,
+    require_lo_deadlines: bool = False,
 ) -> Optional[set[int]]:
     """Smallest LO-criticality set to shed at severity ``x``, by ``ordering``.
 
@@ -254,7 +290,7 @@ def drop_set_at_severity(
             return dict.fromkeys(lo, math.inf)
 
     dropped: set[int] = set()
-    while not is_feasible(taskset, budgets, dropped, carry_in_for):
+    while not is_feasible(taskset, budgets, dropped, carry_in_for, require_lo_deadlines):
         candidates = [i for i in lo if i not in dropped]
         if not candidates:
             return None
@@ -267,6 +303,7 @@ def drop_set_shed_early(
     operating_severities: list[float],
     trigger_severity: float = 0.0,
     ordering: Ordering = by_utilisation,
+    require_lo_deadlines: bool = False,
     max_iterations: int = 10000,
 ) -> Optional[set[int]]:
     """One drop set, shed in full at the shallowest rung, feasible at every rung.
@@ -317,7 +354,8 @@ def drop_set_shed_early(
         def carry_in_for(i: int) -> dict[int, float]:
             return dict.fromkeys(dropped, threshold[i])
 
-        if all(is_feasible(taskset, b, dropped, carry_in_for) for b in budgets):
+        if all(is_feasible(taskset, b, dropped, carry_in_for, require_lo_deadlines)
+               for b in budgets):
             return dropped
         candidates = [i for i in lo if i not in dropped]
         if not candidates:
@@ -333,6 +371,7 @@ def drop_ladder(
     trigger_severities: Optional[list[float]] = None,
     charge_carry_in: bool = False,
     x_lo: int = 0,
+    require_lo_deadlines: bool = False,
 ) -> Optional[list[set[int]]]:
     """Drop sets for a whole severity ladder, forced to be nested.
 
@@ -411,7 +450,8 @@ def drop_ladder(
                     out[k] = thresholds[y][i] if bounded else math.inf
                 return out
 
-        while not is_feasible(taskset, budgets, dropped, carry_in_for):
+        while not is_feasible(taskset, budgets, dropped, carry_in_for,
+                              require_lo_deadlines):
             candidates = [i for i in lo if i not in dropped]
             if not candidates:
                 return None

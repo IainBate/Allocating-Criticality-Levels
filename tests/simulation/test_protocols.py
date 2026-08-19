@@ -128,7 +128,7 @@ def test_protocol_ordering_over_an_ensemble():
         ):
             r = simulate(ts, duration=200_000, seed=17, mode_protocol=protocol, fp=1e-2)
             totals[key]["deg"] += r.degraded_ticks
-            totals[key]["jl"] += r.jne + r.ldm
+            totals[key]["jl"] += r.jne + r.lo_terminated
             totals[key]["nid"] += r.nid
 
     assert n_sets >= 10, "need a reasonable number of schedulable task sets"

@@ -284,7 +284,7 @@ def test_simulate_falls_back_when_r1_fails():
     # Having fallen back, it is the exact simulation, so it matches run for run.
     assert skipped.nid == exact.nid
     assert skipped.jne == exact.jne
-    assert skipped.ldm == exact.ldm
+    assert skipped.lo_terminated == exact.lo_terminated
     assert skipped.degraded_ticks == exact.degraded_ticks
 
 
@@ -463,7 +463,7 @@ def test_no_budget_overruns(paired_runs):
     assert all(r.budget_overruns == 0 for r in skipped)
 
 
-def test_lo_criticality_deadline_misses_agree(paired_runs):
+def test_lo_criticality_terminations_agree(paired_runs):
     """LDM must not appear out of nowhere on the skipping path.
 
     A fast-forward that resumes with a mis-reconstructed run-queue shows up here
@@ -471,8 +471,8 @@ def test_lo_criticality_deadline_misses_agree(paired_runs):
     deadlines instead.
     """
     exact, skipped = paired_runs
-    assert sum(r.ldm for r in exact) == 0, "sanity: this task set misses no LO deadlines"
-    assert sum(r.ldm for r in skipped) == 0
+    assert sum(r.lo_terminated for r in exact) == 0, "sanity: this task set misses no LO deadlines"
+    assert sum(r.lo_terminated for r in skipped) == 0
 
 
 @pytest.mark.parametrize("metric", sorted(SENSITIVITY))
