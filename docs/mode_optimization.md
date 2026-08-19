@@ -373,6 +373,33 @@ distinguished from noise at these effect sizes.
 
 ---
 
+## Superseded — see the revised protocol
+
+> **Tasks 3.1 and 3.2 below are superseded.** They optimise *trigger spacing*,
+> which a structural pilot on the now-built k-level engine shows has **exactly
+> zero** effect under the shed-early policy the carry-in analysis endorses:
+> `drop_set_shed_early` requires one drop set feasible at every operating
+> severity and the deepest is pinned to 1, so by monotonicity the intermediate
+> severities never bind and the drop set is identical for every spacing
+> (confirmed 16/16 task sets). Since operating budgets are an analysis quantity
+> and not a run-time throttle, the drop set is the only thing distinguishing one
+> level from another — so `k` is vacuous too, agreeing to six decimal places
+> across k ∈ {2,3,4,5}.
+>
+> Every remaining knob moves the objective by under 1.6% against this study's
+> declared 5% threshold, and the exhaustive optimum beats a greedy shedding
+> order by only 0.29–0.83%. The method comparison is therefore retired *with
+> evidence*: its entire answer space lies an order of magnitude below what the
+> study calls meaningful.
+>
+> The replacement is four stages — structural pruning, feasibility
+> characterisation, a regime map, and bounded-gain configuration selection —
+> specified in `research/mode_optimization.tex` §"Revised Protocol". The one
+> above-threshold effect is the scheme against two-level AMC (+5.5% to +11.9%),
+> and the headline risk is feasibility: a progressive ladder exists for only
+> 16/24 task sets at severities (0, 0.25) and 6–7/24 at (0, 0.5), while
+> shed-early always exists.
+
 ## Implementation Checklist
 
 - [ ] **3.0**: Guard `_skip_warm_up` against multi-level configurations (see §3.2

@@ -248,6 +248,133 @@ worked pilot with real data, run on the infrastructure that exists today
 engine); the third needs the $k$-level engine that does not yet exist and is
 specified precisely so it is ready once that engine does.
 
+\section{Revised Protocol}
+\label{sec:revised-protocol}
+
+The protocol in \Cref{sec:phase-a,sec:phase-b,sec:phase-c} was designed before
+the $k$-level engine existed, and assumed that trigger spacing was the quantity
+worth optimising. With the engine built and verified, a structural pilot
+contradicts that assumption outright, and the protocol has to be rebuilt around
+what the pilot found rather than around what was expected.
+
+\subsection{What the structural pilot found}
+\label{sec:structural-pilot}
+
+All figures below are paired (identical task sets and seed blocks), aggregated
+one value per task set, and reported against this study's declared $5\%$
+practical-significance threshold. $n = 12$, $U = 0.7$, $CF = 2$, $f_p = 0.2$,
+$200{,}000$ ticks.
+
+\begin{table}[h]
+\centering
+\caption{Effect of each design knob on service ratio}
+\label{tab:knobs}
+\begin{tabular}{lccl}
+\toprule
+Knob & Effect & Resolvable at & Verdict \\
+\midrule
+Scheme vs.\ two-level AMC   & $+5.5$ to $+11.9\%$ & --- & \textbf{above threshold} \\
+Progressive vs.\ shed-early & $+0.24$ to $+0.62\%$ & $0.25$--$0.79\%$ & 1 of 4 resolved \\
+Shedding order              & $+0.96$ to $+1.54\%$ & $1.2$--$1.4\%$ & 1 of 2 resolved \\
+Greedy vs.\ exhaustive optimum & $+0.29$ to $+0.83\%$ & $0.3$--$1.0\%$ & not resolved \\
+Severity spacing (shed-early) & \textbf{exactly $0$} & --- & structurally vacuous \\
+$k \in \{2,3,4,5\}$ (shed-early) & \textbf{exactly $0$} & --- & structurally vacuous \\
+$x_{\mathrm{LO}}$             & $\approx 0$, slightly negative & --- & settled negative \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+Two entries are exact zeros rather than small numbers, and the reason is
+structural rather than statistical. \texttt{drop\_set\_shed\_early} requires one
+drop set feasible at \emph{every} operating severity, and the deepest is pinned
+to $1$; by monotonicity (M1) feasibility there implies it everywhere below, so
+the intermediate severities never bind and the drop set is identical for every
+spacing -- confirmed on $16/16$ task sets. Since operating budgets are an
+analysis quantity and not a run-time throttle (see the task model's
+``Execution Budget Enforcement''), the drop set is the \emph{only} thing that
+distinguishes one level from another. Identical drop sets therefore make the levels observationally
+identical, and $k$ has no effect: service ratio agrees to six decimal places
+across $k \in \{2,3,4,5\}$.
+
+\textbf{Consequence.} Under shed-early the $k$-level ladder collapses to two
+levels, and the entire gain over two-level AMC comes from \emph{shedding a
+subset rather than everything} -- not from grading. Grading only becomes
+observable under a \emph{progressive} ladder, where $S_1 \subsetneq S_{k-1}$,
+and there it is real: a progressive ladder at severities $(0, 0.25)$ sheds
+$14.6\%$ at the shallowest rung under the conservative point and $0.0\%$ under
+the termination point, against shed-early's $69.4\%$ and $57.6\%$. That is the
+original promise of graded degradation -- mild overruns needing no shedding at
+all -- and it is the one configuration in which the multi-level structure earns
+its keep.
+
+\textbf{The cost is feasibility, and it is the headline risk.} A progressive
+ladder does not always exist: $16/24$ task sets at severities $(0, 0.25)$, and
+only $6$--$7/24$ at $(0, 0.5)$, because a task first shed at a deep rung has an
+infinite shed instant for $33\%$ of HI-criticality tasks at $\chi = 1$. Shed-early
+exists always. Applicability, not optimality, is therefore the quantity the
+study should be measuring.
+
+\subsection{Why the original Phase B is retired}
+
+Phase B asked which optimisation method finds the best trigger spacing under a
+matched budget. Trigger spacing has \emph{no effect at all} under the policy the
+carry-in analysis endorses, so the question is vacuous there; and where it is
+not vacuous, every knob in \Cref{tab:knobs} moves the objective by under
+$1.6\%$, against a declared threshold of $5\%$. The whole answer space of the
+method comparison lies an order of magnitude below what this study calls a
+meaningful difference. Running a genetic algorithm against enumeration to
+compete for tenths of a percent would produce a number, not a finding.
+
+The exhaustive optimum is itself only $0.29$--$0.83\%$ better than a greedy
+shedding order, and that gap is not resolvable at the pilot's scale. This
+retires the metaheuristic question \emph{with evidence} rather than by
+assertion, which is what Phase B existed to do -- it simply answers it in the
+negative and far more cheaply than the original design would have.
+
+\subsection{The replacement: four stages}
+
+\textbf{Stage 0 -- structural pruning.} Before measuring anything, establish
+which knobs can have an effect. Costs minutes, and it is what revealed the two
+exact zeros above. Must be re-run whenever the execution model changes, because
+both zeros are consequences of the model rather than of the task sets.
+
+\textbf{Stage 1 -- feasibility characterisation.} For each configuration
+(operating point $\times$ policy $\times$ severity vector), what fraction of
+task sets admit a ladder at all? This is a design-time property needing no
+simulation, so it is cheap, and it is the primary applicability result: a
+configuration that wins by $6\%$ on a quarter of task sets is a different
+proposition from one that wins by $0.6\%$ on all of them.
+
+\textbf{Stage 2 -- regime map.} The main experiment, and the only one whose
+effects exceed threshold. Service ratio against two-level AMC across
+$(U, D_i/T_i, CF, f_p)$, for both operating points, reporting where the scheme
+wins, by how much, and \emph{where it loses} -- at $U = 0.85$ with tight
+deadlines it already loses by $0.25$ percentage points, and that boundary is a
+result, not an embarrassment.
+
+\textbf{Stage 3 -- configuration selection under a bounded-gain budget.} Since
+every knob is sub-threshold, the question is not "find the optimum" but "is the
+simplest configuration good enough, and by how much could anything beat it?"
+Deliverable: an upper bound on what any search could win, obtained by exhaustive
+enumeration on small task sets. If that bound is below threshold -- as the pilot
+suggests -- the simplest configuration is selected and the matter is closed.
+
+\textbf{Stage 4 -- budget calibration, per operating point.} The two points do
+not behave alike and must be sized separately: the shedding-order effect is
+resolved under the conservative point ($+1.54\%$ against $1.42\%$ resolvable)
+and not under the termination point ($+0.96\%$ against $1.17\%$). Sizing one
+study from the other's pilot would under-power it.
+
+\subsection{Status of the original phases}
+
+\Cref{sec:phase-a} (landscape characterisation) is superseded by Stage 0 and
+Stage 1: it characterised severity, which is now known to be vacuous under the
+endorsed policy. \Cref{sec:phase-b} (method comparison) is retired for the
+reason above. \Cref{sec:phase-c} (budget calibration) survives intact as
+Stage 4, and its seeds-versus-task-sets finding still holds -- it is a property
+of the ensemble's variance structure, not of what is being compared. They are
+retained below as the record of what was planned and why it changed.
+
 \subsection{Phase A: Landscape Characterisation}
 \label{sec:phase-a}
 
