@@ -188,20 +188,10 @@ $$
 \E_{\tau \sim G}[\Phi_k(\tau)] < \E_{\tau \sim G}[\Phi_{k-1}(\tau)]
 $$
 
-Where the objective function is:
-$$
-\Phi(\tau) = \alpha(U) \cdot \mathrm{JNE} + \beta(U) \cdot \mathrm{TiD} + \gamma \cdot \mathrm{WastedCPU}
-$$
+Where the objective function $\Phi$ is as defined in "Proposed Objective: Hybrid
+Approach" above (weights adapt to $U$ per the table there; not repeated here).
 
 **Interpretation**: On average across random task sets, multi-level scheduling with more levels achieves a better objective value.
-
-**Weight Adaptation by Utilisation**:
-| Utilisation Range | $\alpha$ | $\beta$ | $\gamma$ |
-|-------------------|----------|---------|----------|
-| $U < 0.5$ | 1.0 | 0.5 | 0.1 |
-| $0.5 \leq U < 0.7$ | 0.8 | 0.8 | 0.2 |
-| $0.7 \leq U < 0.85$ | 0.5 | 1.0 | 0.3 |
-| $U \geq 0.85$ | 0.3 | 1.0 | 0.5 |
 
 **Validation Method (Ensemble Test)**:
 ```python
