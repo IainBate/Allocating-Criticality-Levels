@@ -5,7 +5,39 @@
 We consider a multi-level degradation model with $k \geq 2$ levels:
 - $L_0$: Normal mode (all tasks run)
 - $L_1, L_2, \dots, L_{k-1}$: Progressive degradation levels
-- Trigger points satisfy: $0 < R_1 \leq R_2 \leq \dots \leq R_{k-1} = R_{\mathrm{trigger}}$
+
+### Trigger points: the severity ladder
+
+Each level $L_x$ has a *severity* $\chi_x \in [0,1]$, with
+$0 = \chi_1 \leq \chi_2 \leq \dots \leq \chi_{k-1} \leq 1$, and triggers when a
+HI-criticality job reaches
+
+$$R_i(\chi) \;=\; \text{the response-time recurrence with every task charged }
+C_i(\chi),\qquad C_i(\chi) = C_i^{\mathrm{lo}} + \chi\,(C_i^{\mathrm{hi}} - C_i^{\mathrm{lo}})$$
+
+measured from the start of the priority level-$i$ busy period. $R_i(\chi)$ is the
+response time that would hold *if the whole system were behaving at severity
+$\chi$*, so reaching it is evidence that observed behaviour is at least that
+severe. A level whose recurrence passes $D_i$ is unreachable for task $i$ and its
+threshold is $+\infty$.
+
+> **This replaces an earlier design** in which intermediate triggers were
+> fractions $\chi \cdot R_i(\mathrm{LO})$ with $\chi < 1$, i.e. placed *below*
+> the AMC-RH trigger. That design is unsound: $R_i(\mathrm{LO})$ is a worst-case
+> bound which is rarely attained, but its fractions are attained routinely under
+> ordinary load. Measured with $f_p = 0$ (no HI-criticality behaviour anywhere),
+> a trigger at $0.9\,R_i(\mathrm{LO})$ fired 14,118 times across 12 task sets,
+> abandoning 356 jobs with no fault present.
+
+Three properties follow, and every proof below rests on them. All three are
+enforced by `tests/scheduling/test_severity.py` over generated task sets:
+
+- **(A)** $R_i(0) = R_i(\mathrm{LO})$ exactly, so $L_1$ coincides with the
+  AMC-RH trigger.
+- **(B)** $\chi_a \leq \chi_b \Rightarrow R_i(\chi_a) \leq R_i(\chi_b)$, so the
+  ladder never crosses.
+- **(C)** $R_i(\chi) \geq R_i(\mathrm{LO})$ for every $\chi$, so **no level ever
+  fires earlier than AMC-RH's single trigger**.
 
 We need to prove that this multi-level scheme maintains schedulability guarantees relative to the base AMC-RH protocol.
 
