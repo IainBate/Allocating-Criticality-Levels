@@ -25,6 +25,9 @@ results/figures/
 results/SUMMARY.md
 results/VALIDATION.md
 
+# LaTeX files (synced to Overleaf - do not ignore, but track)
+# *.tex files are managed via Overleaf sync
+
 # uv
 uv.lock
 
