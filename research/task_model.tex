@@ -936,10 +936,13 @@ rather than a choice of two.
 
 \begin{table}[h]
 \centering
-\caption{Service ratio by operating point. $k=4$, trigger severities
-$(0, 0.5, 1)$, $x_{\mathrm{LO}} = 0$, $f_p = 0.2$, $200{,}000$ ticks
-$\times$ 3 seeds, 30 task sets per block. \emph{Tight} deadlines sit $30\%$ of
-the way from $R_i^{\mathrm{lo}}$ to $T_i$.}
+\caption{Service ratio by operating point: an early, small pilot
+($k=4$, trigger severities $(0, 0.5, 1)$, $x_{\mathrm{LO}} = 0$,
+$f_p = 0.2$, $200{,}000$ ticks $\times$ 3 seeds, up to 30 task sets per
+block). \textbf{Superseded by the properly-powered study in
+mode\_optimization.tex, ``Stage Results''} -- retained here because the
+correction it prompted (below) is itself part of the record. \emph{Tight}
+deadlines sit $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$.}
 \label{tab:operating-points}
 \begin{tabular}{llcccc}
 \toprule
@@ -975,11 +978,16 @@ Regime & Policy & Service & JNE\% & Term.\% & Waste\% \\
 \noindent No HI-criticality deadline was missed under any policy in any regime,
 as clause 1 requires. Four things follow.
 
-\textbf{Both points beat two-level AMC, and the ordering never inverts.} Point
-A gains $1.6$ to $3.0$ percentage points of service ratio, Point B a further
-$1.1$ to $2.8$ on top. The conservative point is therefore worth having on its
-own: it is a strict improvement over AMC-RH that costs no change to the
-execution model and gives up no guarantee AMC-RH provides.
+\textbf{Both points beat two-level AMC, and the ordering never inverts.} In
+this pilot, Point A gains $1.6$ to $3.0$ percentage points of service ratio and
+Point B a further $1.1$ to $2.8$ on top. The properly-powered regime map
+(mode\_optimization.tex, ``Stage Results'') confirms the ordering across a much
+wider grid -- $32$ cells spanning $U \in \{0.6, 0.7, 0.8, 0.9\}$, both deadline
+regimes, both policies -- and finds larger gains throughout: $+2.4\%$ to
+$+22.3\%$, every cell a win, widening as the regime hardens. The conservative
+point is worth having on its own regardless of the exact margin: it is a strict
+improvement over AMC-RH that costs no change to the execution model and gives
+up no guarantee AMC-RH provides.
 
 \textbf{Termination is insurance, not the source of the gain.} Terminations
 never exceed $0.22\%$ of jobs and wasted processor time never $0.32\%$ of the
@@ -987,13 +995,24 @@ run. Point B does not win by discarding late work -- it barely discards any. It
 wins by \emph{shedding less up front}, which termination is what makes sound.
 Reporting the gain as a benefit of termination itself would misattribute it.
 
-\textbf{Both degenerate in the hardest regime.} At $U = 0.85$ with tight
-deadlines the conservative drop set reaches $100\%$ -- clause 2 can only be
-satisfied by shedding everything -- so Point A \emph{is} two-level AMC, and
-Point B is $0.25$ percentage points worse than it. Retaining LO-criticality
-work means absorbing interference, and where a third of jobs are already being
-shed there is no headroom to pay for it. Neither point should be recommended
-unconditionally.
+\textbf{The claimed loss at $U=0.85$, tight, does not reproduce.} This pilot's
+own $3$-seed, $\sim\!25$-task-set sample reported Point B $0.25$ percentage
+points \emph{worse} than AMC-RA here, and an earlier draft of this section
+concluded the scheme should not be recommended unconditionally on that basis.
+It should not have: the sample's own \texttt{resolvable} bound was never
+checked against this study's $5\%$ threshold before the claim was written down,
+and $U=0.85$/tight is a scarce region of the population
+(mode\_optimization.tex, ``Feasibility''), exactly where a small sample is least
+trustworthy. Re-measured independently at $50$ task sets and $10$ seeds: Point
+A scores $+1.70\%$ over AMC-RA ($95\%$ CI $[-0.10\%, +2.51\%]$, not resolved --
+the interval cannot rule out a very small loss, but overwhelmingly favours a
+small gain); Point B scores $+5.87\%$ (resolved, practically significant). The
+full regime map in mode\_optimization.tex, ``Stage Results'', finds the scheme
+beating AMC-RA in all $32$ cells tested, including this one. The
+methodological lesson is the one this project's own measurement contract
+already states: an unpowered pilot is not merely weaker evidence, it can be
+actively wrong, and this is a case of that happening in this project's own
+paper rather than a hypothetical.
 
 \textbf{The intermediate policy is dominated but instructive.} It never beats
 Point B, because the tasks it defers to rung 2 are precisely those the analysis
