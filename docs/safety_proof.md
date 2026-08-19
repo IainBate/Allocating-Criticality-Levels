@@ -307,23 +307,36 @@ HI-criticality tasks can only fall.
 The dial has two ends and both are worth reporting, because they carry
 different certification prerequisites.
 
-| | Clause 2 | Retained LO tasks | Needs termination? | Service vs AMC-RH |
-|---|---|---|---|---|
-| **A conservative** | enforced | certified to complete (LDM = 0 by analysis) | **no** | +1.6 to +3.0 pp |
-| **B termination** | objective | best-effort, terminated if late | yes | +3.4 to +5.0 pp |
+| | Clause 2 | Retained LO tasks | Needs termination? | Service vs AMC-RH (small pilot) | Service vs AMC-RH (calibrated) |
+|---|---|---|---|---|---|
+| **A conservative** | enforced | certified to complete (LDM = 0 by analysis) | **no** | +1.6 to +3.0 pp | **+2.4% to +14.1%** |
+| **B termination** | objective | best-effort, terminated if late | yes | +3.4 to +5.0 pp | **+3.5% to +22.3%** |
 
 Point A is sound under the *original* two-level execution semantics — nothing
 is ever cut off mid-computation — so it is available to anyone unwilling to
 accept termination, and it still strictly improves on AMC-RH. Point B trades
 that guarantee for more retained work.
 
-Two caveats belong with the numbers. Terminations never exceed 0.22% of jobs,
-so **Point B's gain comes from shedding less up front, not from discarding late
-work** — termination is what makes the smaller drop set sound, not the source
-of the benefit. And in the hardest regime tested ($U = 0.85$, deadlines at 30%
-of the way from $R_i(\mathrm{LO})$ to $T_i$) Point A's drop set reaches 100%,
-so it *is* AMC-RH, and Point B is 0.25 pp worse. Neither should be recommended
-unconditionally.
+One caveat belongs with the numbers regardless of scale: terminations never
+exceed 0.22% of jobs, so **Point B's gain comes from shedding less up front,
+not from discarding late work** — termination is what makes the smaller drop
+set sound, not the source of the benefit.
+
+**A second caveat was withdrawn after re-measurement, and the withdrawal is
+recorded here because the failure it illustrates is worth keeping.** An
+earlier version of this section claimed both points "degenerate" at $U=0.85$,
+tight deadlines — Point A collapsing to AMC-RH and Point B losing to it by
+0.25 pp — based on a 3-seed, ~25-task-set pilot. That claim's own `resolvable`
+bound was never checked against this study's 5% threshold before it was
+written down, and $U=0.85$/tight is a scarce region of the population, exactly
+where a small sample is least trustworthy. Re-measured independently at 50
+task sets and 10 seeds: Point A scores +1.70% (95% CI [-0.10%, +2.51%], not
+resolved but overwhelmingly favouring a small gain over a loss); Point B
+scores +5.87% (resolved, practically significant). The full regime map
+(`research/mode_optimization.tex`, "Stage Results") finds the scheme beating
+AMC-RA in all 32 cells tested, this one included. Treat the "small pilot"
+column above as superseded by the "calibrated" column, kept side by side as
+the record of what an underpowered sample got wrong.
 
 ### Deeper rungs can always shed more safely
 
