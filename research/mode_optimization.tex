@@ -1,0 +1,231 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, urlcolor=blue}
+
+\input{macros}
+
+\title{Choosing an Optimisation Method for Severity-Ladder Design}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+Phase 3 of this work asks: for $k$ degradation levels, what severities
+$\chi_2, \dots, \chi_{k-1}$ should trigger levels $L_2, \dots, L_{k-1}$
+(severity-indexed response time and admissibility, task\_model.tex), and what
+optimisation method should be used to find them? The method cannot be chosen from habit or
+convenience -- the wrong choice either wastes evaluation budget the problem
+does not need spent, or under-samples a domain that needs full coverage. This
+document characterises the search problem first (\Cref{sec:landscape}), then
+uses that characterisation to assess the candidate optimisation techniques
+(\Cref{sec:related-work}) and justify the one selected
+(\Cref{sec:recommendation}).
+
+\section{Problem Characterisation: The Optimisation Landscape}
+\label{sec:landscape}
+
+\subsection{Decision Variables and Domain}
+
+A $k$-level severity ladder has $k - 1$ trigger points, but the deepest,
+$\chi_{k-1}$, is not free: the safety argument (admissible drop sets,
+task\_model.tex) requires $\chi_1 = 0$, and pinning $\chi_{k-1}$ recovers the
+classic two-level guarantee exactly at the deepest level. The optimisation is therefore over $\mathbf{k - 2}$ free variables
+$\chi_2 \leq \chi_3 \leq \dots \leq \chi_{k-2}$, each bounded in $(0, 1]$ and
+subject to a total order. This is small in every case this work considers:
+
+\begin{table}[h]
+\centering
+\caption{Free dimensions and feasible-set size by level count}
+\begin{tabular}{cccc}
+\toprule
+$k$ & free dimensions & unordered hypercube ($g=20$) & ordered feasible set \\
+\midrule
+3 & 1 & 400 & \textbf{20} \\
+4 & 2 & 8{,}000 & \textbf{210} \\
+5 & 3 & 160{,}000 & \textbf{1{,}540} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\noindent The right-hand column is not the hypercube $g^{k-2}$ but the number
+of non-decreasing $(k{-}2)$-tuples drawn from a grid of $g$ values,
+$\binom{g+k-3}{k-2}$ (a standard multiset/"stars-and-bars" count): the ordering
+constraint is not an incidental detail but the dominant factor in how large
+the space actually is. A search method that samples the unconstrained box and
+repairs infeasible points by sorting -- the natural approach for a
+population-based or surrogate-based method operating on a free vector --
+wastes evaluations on points that collapse onto the same feasible tuple, and
+in the worst case biases the sampling measure over the feasible region without
+the practitioner intending it to.
+
+\subsection{The Objective is a Noisy, Expensive-per-Sample Simulator Output}
+
+$\Phi$ (metrics\_objective.md) is not observed directly; it is estimated from
+a discrete-event simulation whose execution times and HI-criticality
+occurrences are drawn at random. Per-seed coefficients of variation, measured
+on this simulator: $0.157$ (NiD), $0.314$ (JNE), $0.199$ (degraded ticks).
+Neither the objective nor its gradient is available in closed form, so the
+landscape is a black box in the sense every method below has to contend with,
+not merely difficult to solve analytically.
+
+A single simulation is cheap ($\approx 43\,\mathrm{ms}$ for $10^6$ ticks) and
+embarrassingly parallel across seeds and task sets, but the noise above means
+one evaluation at one lattice point is not one sample -- it is a paired mean
+over a seed block, and the block has to be large enough to resolve the effect
+size the study cares about (\S\ref{sec:related-work} returns to what this
+implies for methods that spend their budget on \emph{many} points rather than
+\emph{repeated} samples at few).
+
+\subsection{What Is Not Yet Known}
+
+Whether $\Phi$ is unimodal, smooth, or has a plateau over the severity domain
+is an open empirical question, not an assumption available to lean on. A
+method whose efficiency depends on such structure -- surrogate modelling,
+gradient estimation, population convergence -- is therefore choosing to bet on
+a property this document cannot yet certify. A method that does not depend on
+it is not making that bet, at the cost of not exploiting the structure if it
+does turn out to hold. This tension is the crux of \Cref{sec:related-work}.
+
+\section{Related Work: Optimisation Techniques for Expensive Stochastic Objectives}
+\label{sec:related-work}
+
+Optimising the parameters of a stochastic simulation, rather than a
+closed-form function, is the subject of \emph{simulation optimisation}, whose
+central tension Fu~\cite{fu2002optimization} frames precisely: theoretical
+convergence results are proven for algorithms that are rarely what
+practitioners actually run, while the general-purpose metaheuristics that are
+widely used borrow convergence properties from deterministic optimisation that
+do not transfer cleanly to a noisy objective. Four families of technique are
+relevant to the problem in \Cref{sec:landscape}.
+
+\subsection{Exhaustive Search and Design of Experiments}
+
+Design of Experiments (DOE) fits a statistical model -- typically linear or
+low-order polynomial -- to a systematically chosen sample of the parameter
+space, trading exhaustive coverage for a smaller, structured design (e.g.\ a
+factorial or Latin-hypercube design) when the space is too large to enumerate.
+Tate et al.~\cite{R:Tate:2009a} apply exactly this trade-off to a
+directly comparable problem: tuning multiple sensornet protocol parameters
+against several competing performance metrics, a genuinely high-dimensional,
+combinatorially explosive space where full enumeration is not an option. Their
+DOE fit yielded a more generally applicable model of the parameter space; a
+competing evolutionary search (\Cref{sec:evolutionary}) found a broader range
+of viable solutions at lower cost for the specific instance evaluated. That
+finding does not transfer here, and the reason it does not is itself
+informative: their conclusion favours evolutionary search precisely where full
+enumeration is infeasible, and \Cref{sec:landscape} establishes that the
+severity ladder is not in that regime -- 1{,}540 points at $k=5$ is exhaustively
+enumerable, so DOE's usual purpose, choosing which subset of a space to sample
+because the whole space cannot be, does not arise. What remains applicable is
+the weaker, unconditional claim: over a space small enough to enumerate,
+exhaustive search dominates any sampling design of it, since a sample is only
+ever a strict subset of what enumeration already covers, at correspondingly
+less information per unit of the region actually examined.
+
+\subsection{Evolutionary and Population-Based Metaheuristics}
+\label{sec:evolutionary}
+
+Genetic algorithms~\cite{Gordon93serialand, WHITELY93} and related
+population-based metaheuristics such as simulated
+annealing~\cite{kirkpatrick83optimization} search by iteratively
+perturbing and selecting among a working set of candidate solutions, and are
+the default choice when a space is too large or too irregular to enumerate and
+no exploitable structure is known in advance -- exactly the case in
+Tate et al.'s protocol-tuning problem above. Applied here, the same
+population-based iteration that gives these methods their reach becomes a
+liability: each generation adds evaluations, and \Cref{sec:landscape}'s
+per-seed noise means every added evaluation is a further noisy draw. Selecting
+the best of $M$ such draws is optimistically biased by
+$\sigma \sqrt{2 \ln M}$ (a standard result for the expected maximum of
+$M$ noisy samples). A population of 50 run for 100 generations -- an
+unremarkable configuration -- makes 5{,}000 evaluations; at this simulator's
+measured noise, that inflates the reported optimum's bias to roughly
+$12\%$, more than double the $5\%$ practical-significance threshold this work
+uses to call a result meaningful (metrics\_objective.md). \emph{A genetic
+algorithm run against a perfectly flat objective would return a
+publishable-looking optimum.} This is a general property of any method whose
+evaluation count scales with iterations rather than with the size of the space
+being covered, and it argues against every method in this family for a
+domain this small, independent of how well-suited any of them are in a
+domain too large to enumerate.
+
+\subsection{Bayesian Optimisation and Surrogate Models}
+
+Bayesian optimisation~\cite{jones1998efficient, shahriari2016taking} fits a
+probabilistic surrogate -- typically a Gaussian process -- to the evaluations
+seen so far, and chooses the next point by an acquisition function that
+balances exploiting the surrogate's optimum against exploring where it is most
+uncertain. It is the standard choice when each evaluation is expensive enough
+that minimising the \emph{number} of evaluations dominates every other
+concern, and its sample efficiency is real precisely under that condition. It
+is not the condition here: \Cref{sec:landscape} costs a single simulation at
+tens of milliseconds and the whole lattice at a few CPU-hours, so there is no
+evaluation budget for a surrogate to conserve. Two further mismatches follow
+from \Cref{sec:landscape} specifically. First, the deliverable is a response
+surface, not an optimum -- Bayesian optimisation is built to concentrate
+samples near a believed optimum, which is the opposite of what characterising
+a surface requires, and recovering the surface afterwards needs a further,
+separately budgeted sampling pass. Second, the surrogate assumes a smoothness
+the objective has not yet been shown to have (\Cref{sec:landscape}); a
+Gaussian-process surrogate additionally needs an explicit noise term fitted
+correctly to the measured heteroscedastic variance above, which is one more
+unverified assumption riding on an already-unverified one.
+
+\subsection{Gradient-Based and Derivative-Free Local Search}
+
+Classical gradient-based optimisation is inapplicable outright: $\Phi$ is the
+output of a discrete-event simulation with no closed form and no analytic
+derivative, and finite-difference gradient estimates would themselves be noisy
+at the measured coefficients of variation, compounding rather than resolving
+the problem \Cref{sec:evolutionary} raises. Derivative-free local search
+(pattern search, Nelder--Mead) removes the need for a derivative but keeps the
+core liability: it is iterative and local, so it inherits both the winner's
+curse of repeated noisy evaluation and a dependence on the smoothness this
+document has not established.
+
+\section{Recommendation}
+\label{sec:recommendation}
+
+\textbf{Exhaustive enumeration of the ordered severity lattice
+(\Cref{sec:landscape}), evaluated under common random numbers.} Every
+technique surveyed in \Cref{sec:related-work} earns its place by trading
+coverage for sample efficiency in a large or unstructured space; the severity
+ladder's space is neither. DOE's usual justification -- covering a space too
+large to enumerate -- does not apply once the ordering constraint is
+respected directly rather than repaired after the fact. Evolutionary and
+Bayesian methods both spend evaluations to save evaluations, at a specific,
+quantified cost (winner's-curse bias, or an unrepresentative sample of the
+surface) that this domain does not need paid. Enumeration additionally
+reports the whole surface natively, has one hyperparameter -- grid resolution
+-- against a genetic algorithm's at least eight or a Gaussian process's
+comparable number, and needs no additional dependency. This recommendation is
+conditional, not permanent: it should be revisited if $k$ grows past roughly
+six levels, or if the trigger vector gains dimensions (per-task rather than
+per-level triggers scale with $n$, not $k$, and enumeration stops being
+affordable) -- at that point a Bayesian method adopted \emph{with} the paired
+evaluation protocol below is the natural replacement, since the case against
+it here is about cost, not principle.
+
+Whichever method is used, it must respect the noise floor
+\Cref{sec:landscape} establishes: configurations are compared as paired
+samples under common random numbers, never as independent means, since an
+unpaired comparison at this simulator's measured noise needs roughly two
+orders of magnitude more task sets to resolve the same effect
+(metrics\_objective.md, evaluation\_methodology.tex \S3). This is the one
+requirement every method in \Cref{sec:related-work} shares, and the one a
+choice of \emph{method} cannot substitute for.
+
+\bibliographystyle{plain}
+\bibliography{project_bib,references}
+
+\end{document}
