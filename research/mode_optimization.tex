@@ -787,18 +787,44 @@ confirmed by rerunning at that scale and checking the resolvable bound
 against the target -- not merely computed once and trusted.
 
 \section{What This Protocol Does and Does Not Yet Establish}
+\label{sec:final-status}
 
-Phases A and C, run above on real infrastructure, both survive: property
-(B)'s practical consequence held with zero violations across the ensemble,
-and \Cref{sec:hypothesis}'s claim about paired evaluation being necessary was
-independently reinforced by a second, unrelated route (the seeds-vs-task-sets
-finding) rather than merely repeated. Neither result depended on assuming
-$\Phi$'s shape, which is the property \Cref{sec:hypothesis} needs. Phase B --
-the actual test of enumeration against a competing method, which is the part
-of \Cref{sec:hypothesis} closest to being an unverified assertion rather than
-a structural fact -- has not run, and \Cref{sec:hypothesis} should be read
-accordingly: a well-motivated prior with two of its three empirical checks
-passed, not a settled conclusion.
+This section is written after \Cref{sec:stage-results}, and supersedes the
+version of it written before the $k$-level engine existed. The original
+question -- does a metaheuristic beat exhaustive enumeration at finding good
+trigger severities? -- has been answered, but not by running that comparison.
+It has been answered by showing the comparison is not worth running: trigger
+spacing has no effect on the endorsed (shed-early) policy at all, and every
+knob that survives Stage 0's pruning moves service ratio by under $1.6\%$
+against this study's own $5\%$ threshold, with Stage 3's exhaustive bound
+placing at most $0.79\%$ on the table for \emph{any} method to find. Enumeration
+does not need to be shown to beat a genetic algorithm when the prize either
+method could win is an order of magnitude below what this study calls a
+result.
+
+What \emph{is} established, and at a scale the original three-phase design did
+not anticipate needing: the scheme beats two-level AMC-RA in all $32$
+configurations of the regime map, by a widening margin as utilisation rises
+and deadlines tighten ($+2.4\%$ to $+27.3\%$), with $22$ of those $32$ results
+practically significant by this study's own threshold. That is the actual
+positive result this line of work set out to find, and it did not require
+optimising trigger spacing to get it -- it came from the choice of drop policy
+(shed-early over progressive-by-default; progressive where feasible) and
+operating point (conservative versus termination), which Stage 1 and Stage 2
+characterise directly.
+
+Two things are not yet established and are named rather than glossed over.
+First, the regime map's grid is coarse ($U \in \{0.6,0.7,0.8,0.9\}$, two
+deadline regimes, one progressive spacing) -- it is not a claim that every
+point in the continuous $(U, D_i/T_i, CF, f_p)$ space behaves this well, only
+that no point tested behaves badly, which is itself a correction of an earlier,
+narrower claim to the contrary (\Cref{sec:regime-map-results}). Second,
+progressive feasibility falls as low as $50\%$ at the hardest utilisation and
+deadline combinations tested, and lower still where the population itself
+becomes scarce ($U=0.9$, tight); the regime map's progressive rows are
+therefore conditioned on a shrinking, and not necessarily representative,
+subset of the population as the regime hardens. Both are stated as scope, not
+as doubt about the results reported within that scope.
 
 \bibliographystyle{plain}
 \bibliography{project_bib,references}
