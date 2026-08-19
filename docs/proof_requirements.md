@@ -6,12 +6,27 @@ This document identifies the necessary correctness proofs for the multi-level mi
 
 ## Proven Properties (Verified)
 
-| Property | Status | Reference |
-|----------|--------|-----------|
-| HI tasks meet deadlines when $R_x \leq R_{\mathrm{trigger}}$ | **Proven** | Theorem 1 in `safety_proof.md` |
-| System never enters worse state than AMC-RH | **Proven** | Theorem 2 in `safety_proof.md` |
-| LO task abandonment is monotonic with level | **Proven** | Lemma 1 in `safety_proof.md` |
-| JNE is bounded by AMC-RH performance | **Proven** | Corollary 1 in `safety_proof.md` |
+All four rest on the *severity ladder* trigger family and on drop sets being
+**admissible** (see `safety_proof.md`). Under the earlier fraction-of-$R_i(LO)$
+design two of them were false; the status column records what is established
+now, and by what.
+
+| Property | Status | Established by |
+|----------|--------|----------------|
+| HI tasks meet deadlines at every level | **Proven**, conditional on admissible drop sets | Theorem 1 + admissibility clause 1; drop sets computed by `scheduling/drop_sets.py`, tested in `tests/scheduling/test_drop_sets.py` |
+| Retained LO tasks meet their deadlines (LDM = 0) | **Proven**, conditional on admissible drop sets | Theorem 3 + admissibility clause 2 — replaces the previous, false, "no LO task sees more interference" claim |
+| LO task abandonment is monotonic with level | **Proven** | Lemma 1 — a property of the greedy construction (levels are prefixes of one shed sequence), not an assumption about the drop policy |
+| JNE is bounded by AMC-RH performance | **Proven** | Corollary 1, *and only because of* ladder property (C): no level fires before $R_i(LO)$. Was false under the fraction design (measured: 356 abandoned jobs against AMC-RH's zero, with no fault present) |
+| Time at the *deepest* level is bounded by AMC-RH's degraded time | **Proven** | Theorem 2 via property (C) |
+| Total time at *any* degraded level is bounded by AMC-RH's | **Not claimed** | Shedding less can lengthen the drain, so TiD may exceed AMC-RH's. Measure it; do not argue it |
+
+### Ladder properties these depend on
+
+| Property | Status | Established by |
+|----------|--------|----------------|
+| (A) $R_i(0) = R_i(LO)$ exactly | **Verified** | `tests/scheduling/test_severity.py`, 40 task sets x 10 severities |
+| (B) thresholds monotone in severity | **Verified** | same; requires $+\infty$ saturation for unreachable levels, without which it fails |
+| (C) $R_i(\chi) \geq R_i(LO)$ always | **Verified** | same — the property the fraction design violated by construction |
 
 ## Assumed Properties (Needed for Framework)
 
@@ -55,13 +70,6 @@ This document identifies the necessary correctness proofs for the multi-level mi
 
 ## Completed Work
 
-### Proven Properties (Verified)
-| Property | Status | Reference |
-|----------|--------|-----------|
-| HI tasks meet deadlines when $R_x \leq R_{\mathrm{trigger}}$ | **Proven** | Theorem 1 in `safety_proof.md` |
-| System never enters worse state than AMC-RH | **Proven** | Theorem 2 in `safety_proof.md` |
-| LO task abandonment is monotonic with level | **Proven** | Lemma 1 in `safety_proof.md` |
-| JNE is bounded by AMC-RH performance | **Proven** | Corollary 1 in `safety_proof.md` |
 
 ### Metrics and Objective Function
 | Component | Status | Reference |
@@ -98,12 +106,16 @@ This document identifies the necessary correctness proofs for the multi-level mi
 
 | Category | Count |
 |----------|-------|
-| Proven | 4 |
+| Proven (conditional on admissible drop sets) | 5 |
+| Explicitly not claimed | 1 |
+| Ladder properties verified by test | 3 |
 | Assumed | 6 |
 | Open | 5 |
-| Completed (Tasks 2.1-2.3) | 8 |
 
-**Status**: Implementation framework complete with formal definitions for meaningful improvement criteria and complexity analysis. The remaining open proofs can be addressed incrementally as research extensions.
+**Status**: the safety argument is now carried by executable checks rather than
+prose — ladder properties (A)-(C) and drop-set admissibility are enforced by
+`tests/scheduling/`, so a regression fails the suite rather than surviving in a
+document. The open questions below remain open.
 
 ## Proof Framework for Remaining Questions
 
@@ -149,12 +161,4 @@ Before deploying multi-level scheduling, verify:
 - [ ] **V.5**: No priority inversion in intermediate levels
 - [ ] **V.6**: BCET constraints maintained after level transitions
 
-## Summary
 
-| Category | Count |
-|----------|-------|
-| Proven | 4 |
-| Assumed | 6 |
-| Open | 3 |
-
-**Recommendation**: Proceed with implementation using the proven properties as safety guarantees. The open questions can be addressed incrementally as research extensions.

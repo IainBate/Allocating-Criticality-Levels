@@ -57,17 +57,29 @@ $$R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}} + \sum_{j \in \mathrm{hp}_{\mathrm{HI}}(
 
 ### Degradation Level Transitions
 - System enters $L_x$ when some HI-criticality task reaches trigger point $R_x$
-- Trigger points are ordered: $R_1 \leq R_2 \leq \dots \leq R_{k-1} = R_{\mathrm{trigger}}$
+- Thresholds are ordered by property **(B)**: $R_i(\chi_1) \leq \dots \leq R_i(\chi_{k-1})$, with $R_i(\chi_1) = R_i(\mathrm{LO})$ by property **(A)**
 
 ## Key Lemma
 
-**Lemma 1 (Monotonic Drop Set)**. If $R_x \leq R_y$ for $x < y$, then the set of tasks dropped at level $L_x$ is a subset of those dropped at level $L_y$.
+**Lemma 1 (Monotonic Drop Set)**. For $\chi_x \leq \chi_y$, $S_x \subseteq S_y$.
 
-*Proof*: The drop decision at each level depends on which LO-criticality tasks can still meet their deadlines given the remaining processor capacity. Since higher levels are reached only after lower levels (due to ordered trigger points), and since dropping more tasks at higher levels provides greater protection to HI tasks, the monotonicity follows by construction of the drop policy.
+*Proof*: A drop set is built by shedding tasks, one at a time, from the full
+LO-criticality set until admissible, choosing the next by an *ordering* --
+a function of the task set and the remaining candidates. Every level begins
+from the same full candidate set, so the ordering yields the *same sequence* of
+tasks at every severity. Raising $\chi$ only increases interference, so any set
+admissible at $\chi_y$ is also admissible at $\chi_x \leq \chi_y$; the shedding
+therefore stops no later at $\chi_x$ than at $\chi_y$ along that shared
+sequence. Each level is a prefix of one sequence, and prefixes nest. $\square$
+
+This is a property of the construction, not an assumption about it, and it is
+checked in `tests/scheduling/test_drop_sets.py`. It fails only for an ordering
+that consults the severity or the partial drop set, which is why
+`drop_ladder()` carries each level's set forward as a safeguard.
 
 ## Theorem 1: HI Tasks Meet Deadlines
 
-**Statement**: If all HI-criticality tasks meet their deadlines under AMC-RH with trigger point $R_{\mathrm{trigger}}$, they also meet deadlines in the multi-level scheme with $R_1 \leq R_2 \leq \dots \leq R_{k-1} = R_{\mathrm{trigger}}$.
+**Statement**: If all HI-criticality tasks meet their deadlines under AMC-RH, they also meet them in the multi-level scheme with severities $0 = \chi_1 \leq \dots \leq \chi_{k-1}$ and admissible drop sets.
 
 *Proof*: 
 
@@ -75,33 +87,45 @@ $$R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}} + \sum_{j \in \mathrm{hp}_{\mathrm{HI}}(
 
 2. In the multi-level scheme:
    - Level $L_0$ (normal) is identical to AMC-RH normal mode
-   - The first transition occurs at $R_1 \leq R_{\mathrm{trigger}}$
-   - Since $\tau_i$ reaches $R_i^{\mathrm{lo}} = R_{\mathrm{trigger}}$ before reaching any $R_x < R_{\mathrm{trigger}}$, the HI-criticality behavior detection is no earlier than in AMC-RH.
+   - By property **(A)**, $L_1$ triggers at $R_i(0) = R_i(\mathrm{LO})$, which is exactly AMC-RH's trigger, so protection begins at the same instant, never later.
 
 3. Once in degraded mode, $\tau_i$ continues to execute with budget $C_i^{\mathrm{hi}}$, which by assumption allows it to meet its deadline.
 
-4. Since degradation may start *later* (if $R_x < R_{\mathrm{trigger}}$ for some $x$), HI tasks have *more* time to complete before entering degraded mode, making them strictly more likely to meet deadlines.
+4. Deeper levels trigger later (property **(B)**) and shed more (Lemma 1), so each provides at least the protection of the level below it. Clause 1 of admissibility discharges the deadline obligation at every level.
 
 Therefore, HI-criticality tasks meet their deadlines in the multi-level scheme. $\square$
 
 ## Theorem 2: No Worse Than AMC-RH
 
-**Statement**: For any task set and execution trace, the time spent in fully-degraded mode ($L_{k-1}$) is no greater than under AMC-RH.
+**Statement**: On the same arrival sequence and execution times, the time spent
+at the deepest level $L_{k-1}$ is no greater than the time AMC-RH spends in
+degraded mode.
 
-*Proof*:
+*Proof*: AMC-RH enters degraded mode when a HI-criticality job reaches
+$R_i(\mathrm{LO})$. The multi-level scheme enters $L_{k-1}$ when a job reaches
+$R_i(\chi_{k-1})$, and by property **(C)** $R_i(\chi_{k-1}) \geq
+R_i(\mathrm{LO})$. So every instant at which the scheme is at $L_{k-1}$ is an
+instant at which AMC-RH is already degraded, given a common exit rule. The set of
+$L_{k-1}$ instants is contained in the set of AMC-RH degraded instants, so its
+measure is no greater. $\square$
 
-1. Under AMC-RH, the system enters degraded mode when *any* HI-criticality task reaches $R_{\mathrm{trigger}}$.
-
-2. In the multi-level scheme:
-   - The first $k-2$ transitions (to $L_1, \dots, L_{k-2}$) occur at trigger points $< R_{\mathrm{trigger}}$
-   - These levels retain some LO-criticality tasks, reducing interference to HI tasks
-   - Full degradation ($L_{k-1}$) occurs only when some task reaches $R_{\mathrm{trigger}}$
-
-3. Since the system spends *some* time in intermediate levels (where LO tasks remain), the effective LO-criticality workload during these periods is less than in AMC-RH's fully-degraded mode.
-
-4. With less interference, HI-criticality tasks complete faster, reducing the duration until the system can exit degraded mode.
-
-Therefore, $T_{\mathrm{degraded}}^{\text{multi-level}} \leq T_{\mathrm{degraded}}^{\text{AMC-RH}}$. $\square$
+> **Scope.** This bounds occupancy of the *deepest* level only. Total time spent
+> at *any* degraded level is **not** bounded by AMC-RH's, and should not be
+> claimed: $L_1$ fires at exactly AMC-RH's trigger (property **(A)**), and
+> shedding less means the system can take longer to drain, so it may remain
+> degraded longer. That is the real cost of grading the response, and it is a
+> quantity to measure (TiD), not to bound by argument.
+>
+> The exit rule also has to be stated, because the containment above assumes
+> both schemes leave on the same condition. Note further that an exit rule with
+> a *temporal* component (a hysteresis or hold-off) is not currently expressible
+> exactly in the simulator: `ModeChangeProtocol` exposes `entry_time()` as a
+> scheduled instant but only a `should_exit()` predicate, which is sampled at
+> whatever event the loop reaches next. For the three shipped protocols this is
+> exact, because their exit conditions can only become true when the run-queue
+> shrinks — itself an event. A hysteresis rule breaks that and inflates
+> `degraded_ticks` by roughly 15–20%. Adding `exit_time()` is a prerequisite for
+> any k-level demotion policy with a timer.
 
 ## Corollary 1: JNE Bound
 
@@ -202,7 +226,7 @@ deadlines. **This is the quantitative case for grading the response.**
 
 ## Practical Implications
 
-1. **Trigger Point Selection**: Setting $R_x < R_{\mathrm{trigger}}$ for intermediate levels provides earlier entry to protection, potentially reducing HI response times further.
+1. **Trigger Point Selection**: intermediate levels sit at or *above* $R_i(\mathrm{LO})$, never below it. A threshold below $R_i(\mathrm{LO})$ fires under ordinary load and costs LO-criticality work with no fault present; property (C) forbids it.
 
 2. **Drop Strategy**: The monotonicity property allows simpler implementation - each level can just drop additional tasks rather than computing a new set from scratch.
 
