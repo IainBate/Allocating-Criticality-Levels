@@ -28,9 +28,13 @@ task_model.pdf: task_model.tex macros.tex project_bib.bib references.bib
 	tectonic task_model.tex
 	@echo "Generated task_model.pdf"
 
-evaluation_methodology.pdf: evaluation_methodology.tex macros.tex project_bib.bib references.bib
+evaluation_methodology.pdf: evaluation_methodology.tex macros.tex eval_defaults.tex project_bib.bib references.bib
 	tectonic evaluation_methodology.tex
 	@echo "Generated evaluation_methodology.pdf"
+
+mode_optimization.pdf: mode_optimization.tex macros.tex project_bib.bib references.bib
+	tectonic mode_optimization.tex
+	@echo "Generated mode_optimization.pdf"
 
 clean:
 	rm -f *.aux *.bbl *.blg *.log *.pdf *.out
