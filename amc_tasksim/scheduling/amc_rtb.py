@@ -183,6 +183,116 @@ def busy_period_bound(taskset: TaskSet, max_iterations: int = 10000) -> Optional
     return None
 
 
+def severity_budgets(taskset: TaskSet, x: float) -> list[int]:
+    """Per-task execution budgets at severity ``x``, interpolating C(LO) to C(HI).
+
+    ``x = 0`` gives C_i(LO) exactly and ``x = 1`` gives C_i(HI); in between, the
+    budget a task would be charged if the system were behaving ``x`` of the way
+    from fully compliant to fully overrunning.
+
+    The result is clamped below at C_i(LO), which is what makes the trigger
+    ladder built on it safe: a severity budget is never *less* than the LO
+    budget, so the response times derived from it are never *earlier* than
+    R_i(LO). Rounding must not be allowed to break that.
+
+    Args:
+        taskset: Task set.
+        x: Severity in [0, 1].
+
+    Returns:
+        Per-task budgets C_i(x).
+    """
+    if not 0.0 <= x <= 1.0:
+        raise ValueError(f"severity must be in [0, 1], got {x}")
+    return [
+        max(
+            taskset.C_lo[i],
+            int(round(taskset.C_lo[i] + x * (taskset.C_hi[i] - taskset.C_lo[i]))),
+        )
+        for i in range(taskset.n)
+    ]
+
+
+def response_times_at_budget(
+    taskset: TaskSet,
+    budgets: list[int],
+    max_iterations: int = 10000,
+) -> list[float]:
+    """Response-time bounds when *every* task is charged ``budgets``.
+
+    The standard fixed-priority recurrence, equation (1) of the AMC-RH paper,
+    with C_i(LO) replaced throughout by the given budgets:
+
+        R_i = C_i + sum over j in hp(i) of ceil(R_i / T_j) * C_j
+
+    At ``budgets = C(LO)`` this reproduces R_i(LO) exactly. At a higher budget
+    vector it answers a different question: how long task i could take *if the
+    whole system were behaving at that level*. Reaching that bound at run time
+    is therefore evidence that observed behaviour is at least that severe, which
+    is what makes it usable as a degradation trigger.
+
+    A task whose recurrence passes its deadline gets ``math.inf`` rather than
+    the value it had got to. That level is simply unreachable for that task, so
+    as a trigger it never fires. Returning the partially-iterated value instead
+    would break monotonicity in the budget: the recurrence stops early once it
+    exceeds D_i, so a *larger* budget can stop sooner and report a *smaller*
+    number.
+
+    Args:
+        taskset: Task set with priorities assigned.
+        budgets: Per-task execution budget to charge.
+        max_iterations: Maximum fixed-point iterations.
+
+    Returns:
+        Per-task response-time bounds; ``math.inf`` where unreachable.
+    """
+    n = taskset.n
+    hp = [
+        [j for j in range(n) if taskset.priority[j] < taskset.priority[i]]
+        for i in range(n)
+    ]
+
+    out: list[float] = []
+    for i in range(n):
+        w = budgets[i]
+        unreachable = False
+        for _ in range(max_iterations):
+            interference = sum(
+                _num_jobs(taskset.T[j], w) * budgets[j] for j in hp[i]
+            )
+            w_new = budgets[i] + interference
+            if w_new == w:
+                break
+            w = w_new
+            if w > taskset.D[i]:
+                unreachable = True
+                break
+        else:
+            _warn_no_convergence(i, "R_i at severity budget", max_iterations)
+        out.append(math.inf if unreachable else float(w))
+    return out
+
+
+def severity_trigger(taskset: TaskSet, x: float) -> list[float]:
+    """Trigger thresholds R_i(x) for degradation level at severity ``x``.
+
+    Convenience composition of :func:`severity_budgets` and
+    :func:`response_times_at_budget`. Three properties hold for every task set
+    and are what the multi-level scheme's safety argument rests on:
+
+    * ``severity_trigger(ts, 0.0)`` equals ``amc_rtb(ts).r_lo`` -- so a level at
+      x=0 fires exactly where two-level AMC-RH fires, and HI-criticality
+      protection begins no later than it does today.
+    * The thresholds are non-decreasing in ``x``, so a ladder of increasing
+      severities never crosses itself.
+    * Every threshold is at or above R_i(LO), so no level ever drops
+      LO-criticality work *earlier* than AMC-RH would have.
+
+    These are enforced by the tests in ``tests/scheduling/test_severity.py``.
+    """
+    return response_times_at_budget(taskset, severity_budgets(taskset, x))
+
+
 def normal_mode_schedulable(taskset: TaskSet) -> bool:
     """Whether every task meets its deadline when all jobs comply with C_i(LO).
 
