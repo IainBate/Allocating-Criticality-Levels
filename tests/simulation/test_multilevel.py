@@ -1,0 +1,320 @@
+"""Tests for the k-level severity-ladder engine.
+
+The central claim under test is exact reproduction at k=2, split into two
+separately-checkable pieces per the finding that motivated the ladder's
+trigger/operating severity split (multilevel.py, SeverityLadder docstring):
+
+1. With ``drop_policy="full"`` (drop every LO-criticality task once
+   degraded, matching the classic scheme exactly), the k-level engine must
+   be BIT-IDENTICAL to the two-level engine's AMC_RA. This isolates whether
+   the k-level engine's own mechanics (event loop, entry, exit, budget
+   escalation, metrics) are correct, independent of the admissible-drop-set
+   optimisation.
+2. With ``drop_policy="admissible"`` (the actual scheme), JNE must be no
+   greater than the "full" policy's -- never bit-identical, since retaining
+   admissible LO work is the entire point, but never worse either
+   (Corollary 1's practical consequence).
+"""
+
+from __future__ import annotations
+
+import pytest
+
+from amc_tasksim.generation.taskset import TaskSet, generate_taskset
+from amc_tasksim.scheduling.amc_rtb import (
+    busy_period_bound,
+    is_nontrivial_amc_taskset,
+    normal_mode_schedulable,
+)
+from amc_tasksim.scheduling.priority import assign_deadline_monotonic
+from amc_tasksim.simulation.engine import AMC_RA, simulate
+from amc_tasksim.simulation.multilevel import (
+    SeverityLadder,
+    build_ladder,
+    simulate_multilevel,
+)
+
+
+def population(count: int, **kw) -> list[TaskSet]:
+    params = dict(n=12, CP=0.5, U=0.7, CF=2.0, period_mode="semi_harmonic")
+    params.update(kw)
+    out = []
+    for seed in range(4000):
+        ts = generate_taskset(rng_seed=seed, **params)
+        assign_deadline_monotonic(ts)
+        if (
+            normal_mode_schedulable(ts)
+            and busy_period_bound(ts) is not None
+            and is_nontrivial_amc_taskset(ts, use_opa=False)
+        ):
+            out.append(ts)
+        if len(out) == count:
+            break
+    assert len(out) == count
+    return out
+
+
+@pytest.fixture(scope="module")
+def tasksets() -> list[TaskSet]:
+    return population(12)
+
+
+FIELDS = ["nid", "jne", "ldm", "hdm", "tid"]
+
+
+# ---------------------------------------------------------------------------
+# build_ladder
+# ---------------------------------------------------------------------------
+
+
+def test_operating_severity_of_deepest_level_is_always_one(tasksets):
+    for ts in tasksets:
+        for severities in [[0.0], [0.0, 0.3], [0.0, 0.2, 0.6]]:
+            ladder = build_ladder(ts, severities)
+            assert ladder is not None
+            assert ladder.operating_severities[-1] == 1.0
+
+
+def test_operating_severity_looks_ahead_to_the_next_trigger(tasksets):
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0, 0.3, 0.6])
+    assert ladder is not None
+    assert ladder.operating_severities[0] == 0.3  # level 1 operates at level 2's trigger
+    assert ladder.operating_severities[1] == 0.6  # level 2 operates at level 3's trigger
+    assert ladder.operating_severities[2] == 1.0  # deepest level: always full
+
+
+def test_k_equals_two_has_trigger_zero_and_operating_one(tasksets):
+    """The specific case that forced the trigger/operating split to exist."""
+    ladder = build_ladder(tasksets[0], [0.0])
+    assert ladder is not None
+    assert ladder.severities == [0.0]
+    assert ladder.operating_severities == [1.0]
+
+
+def test_severities_must_start_at_zero(tasksets):
+    with pytest.raises(ValueError, match="0.0"):
+        build_ladder(tasksets[0], [0.1])
+
+
+def test_severities_must_be_ascending(tasksets):
+    with pytest.raises(ValueError, match="ascending"):
+        build_ladder(tasksets[0], [0.0, 0.5, 0.3])
+
+
+def test_full_drop_policy_drops_every_lo_task_at_every_level(tasksets):
+    ts = tasksets[0]
+    lo = {i for i in range(ts.n) if ts.criticality[i] == "LO"}
+    ladder = build_ladder(ts, [0.0, 0.3], drop_policy="full")
+    assert ladder is not None
+    assert all(s == lo for s in ladder.drop_sets)
+
+
+def test_admissible_drop_sets_are_no_larger_than_full(tasksets):
+    for ts in tasksets:
+        admissible = build_ladder(ts, [0.0, 0.4])
+        full = build_ladder(ts, [0.0, 0.4], drop_policy="full")
+        assert admissible is not None and full is not None
+        for a, f in zip(admissible.drop_sets, full.drop_sets):
+            assert a <= f
+
+
+def test_unknown_drop_policy_rejected(tasksets):
+    with pytest.raises(ValueError, match="drop_policy"):
+        build_ladder(tasksets[0], [0.0], drop_policy="bogus")
+
+
+# ---------------------------------------------------------------------------
+# Exact reproduction at k=2, drop_policy="full"
+# ---------------------------------------------------------------------------
+
+
+DURATION = 300_000
+FP = 5e-3
+N_SEEDS = 8
+
+
+def test_k2_full_drop_reproduces_amc_ra_exactly(tasksets):
+    """The hard correctness bar: bit-identical, not merely similar."""
+    mismatches = 0
+    checked = 0
+    for ts in tasksets:
+        r_lo = _r_lo(ts)
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        assert ladder is not None
+        for seed in range(N_SEEDS):
+            two_level = simulate(
+                ts, duration=DURATION, seed=seed, fp=FP,
+                mode_protocol=AMC_RA(r_lo), skip_quiet=False,
+            )
+            multi = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
+            checked += 1
+            for field_name in FIELDS:
+                if getattr(two_level, field_name) != getattr(multi, field_name):
+                    mismatches += 1
+            if two_level.hi_releases_per_task != multi.hi_releases_per_task:
+                mismatches += 1
+            if two_level.lo_releases_per_task != multi.lo_releases_per_task:
+                mismatches += 1
+            if two_level.hi_trigger_events != multi.hi_trigger_events:
+                mismatches += 1
+    assert checked == len(tasksets) * N_SEEDS
+    assert mismatches == 0
+
+
+def _r_lo(taskset: TaskSet) -> list[float]:
+    from amc_tasksim.scheduling.amc_rtb import amc_rtb
+
+    return amc_rtb(taskset).r_lo
+
+
+def test_k2_full_drop_reproduces_amc_ra_across_fp_values(tasksets):
+    for fp in [0.0, 1e-3, 1e-2]:
+        ts = tasksets[0]
+        r_lo = _r_lo(ts)
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        for seed in range(4):
+            two_level = simulate(
+                ts, duration=DURATION, seed=seed, fp=fp,
+                mode_protocol=AMC_RA(r_lo), skip_quiet=False,
+            )
+            multi = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=fp)
+            for field_name in FIELDS:
+                assert getattr(two_level, field_name) == getattr(multi, field_name), (
+                    f"fp={fp} seed={seed} field={field_name}: "
+                    f"{getattr(two_level, field_name)} != {getattr(multi, field_name)}"
+                )
+
+
+# ---------------------------------------------------------------------------
+# The admissible policy: never worse than full drop, genuinely different
+# ---------------------------------------------------------------------------
+
+
+def test_admissible_jne_never_exceeds_full_drop_jne(tasksets):
+    for ts in tasksets:
+        admissible = build_ladder(ts, [0.0, 0.4])
+        full = build_ladder(ts, [0.0, 0.4], drop_policy="full")
+        for seed in range(6):
+            r_adm = simulate_multilevel(ts, admissible, duration=DURATION, seed=seed, fp=FP)
+            r_full = simulate_multilevel(ts, full, duration=DURATION, seed=seed, fp=FP)
+            assert r_adm.jne <= r_full.jne
+
+
+def test_admissible_policy_is_sometimes_strictly_better():
+    """Guards against the comparison above being vacuously true."""
+    ts = population(1, U=0.7)[0]
+    admissible = build_ladder(ts, [0.0, 0.3, 0.6])
+    full = build_ladder(ts, [0.0, 0.3, 0.6], drop_policy="full")
+    total_adm = total_full = 0
+    for seed in range(20):
+        total_adm += simulate_multilevel(ts, admissible, duration=DURATION, seed=seed, fp=FP).jne
+        total_full += simulate_multilevel(ts, full, duration=DURATION, seed=seed, fp=FP).jne
+    assert total_adm < total_full
+
+
+def test_hdm_is_zero_under_the_admissible_policy(tasksets):
+    """The safety property admissibility exists to guarantee."""
+    for ts in tasksets:
+        ladder = build_ladder(ts, [0.0, 0.3, 0.7])
+        assert ladder is not None
+        for seed in range(6):
+            r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
+            assert r.hdm == 0
+
+
+def test_inadmissible_ladder_can_produce_hi_deadline_misses():
+    """The engine does not silently enforce admissibility -- proven directly.
+
+    Constructs a ladder with an artificially tiny operating severity at a
+    deep level (below what safety needs) by hand, bypassing build_ladder's
+    admissible computation, and confirms HDM becomes nonzero -- so a future
+    change that broke admissibility elsewhere would be caught by *this*
+    engine actually exhibiting deadline misses, not by trusting it can't.
+    """
+    ts = TaskSet(
+        n=3,
+        criticality=["HI", "LO", "LO"],
+        T=[100, 30, 30],
+        D=[100, 30, 30],
+        C_lo=[20, 8, 8],
+        C_hi=[90, 8, 8],
+        BCET=[20, 8, 8],
+    )
+    assign_deadline_monotonic(ts)
+    bad_ladder = SeverityLadder(
+        severities=[0.0],
+        operating_severities=[0.0],  # deliberately NOT 1.0: HI task never gets more budget
+        thresholds=[[0.0]],  # fires immediately, forcing degraded mode constantly
+        drop_sets=[set()],  # and drops nothing, so LO interference is unbounded
+    )
+    misses = 0
+    for seed in range(10):
+        r = simulate_multilevel(ts, bad_ladder, duration=50_000, seed=seed, fp=1.0)
+        misses += r.hdm
+    assert misses > 0
+
+
+# ---------------------------------------------------------------------------
+# General properties
+# ---------------------------------------------------------------------------
+
+
+def test_level_ticks_sum_to_duration(tasksets):
+    for ts in tasksets[:5]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        for seed in range(4):
+            r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
+            assert sum(r.level_ticks) == DURATION
+
+
+def test_tid_matches_level_ticks_above_zero(tasksets):
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0, 0.3])
+    r = simulate_multilevel(ts, ladder, duration=DURATION, seed=1, fp=FP)
+    assert r.tid == pytest.approx(sum(r.level_ticks[1:]) / DURATION)
+
+
+def test_level_trans_at_least_covers_nid(tasksets):
+    """Every L0-exit is a level transition; LevelTrans generalises NiD."""
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0, 0.2, 0.5])
+    r = simulate_multilevel(ts, ladder, duration=DURATION, seed=1, fp=FP)
+    assert r.level_trans >= r.nid
+
+
+def test_wasted_cpu_is_always_zero():
+    """Documented consequence of abandon-on-release; pinned so drift is visible."""
+    ts = population(1)[0]
+    ladder = build_ladder(ts, [0.0, 0.3])
+    for seed in range(5):
+        r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
+        assert r.wasted_cpu == 0
+
+
+def test_no_budget_overruns_under_the_admissible_policy(tasksets):
+    for ts in tasksets:
+        ladder = build_ladder(ts, [0.0, 0.4])
+        for seed in range(4):
+            r = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP)
+            assert r.budget_overruns == 0
+
+
+def test_release_counts_are_rng_independent(tasksets):
+    """Matches the periodic ground truth, same property as the two-level engine."""
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0, 0.3])
+    r = simulate_multilevel(ts, ladder, duration=DURATION, seed=1, fp=FP)
+    for i in range(ts.n):
+        expected = -(-DURATION // ts.T[i])
+        got = (
+            r.hi_releases_per_task[i]
+            if ts.criticality[i] == "HI"
+            else r.lo_releases_per_task[i]
+        )
+        assert got == expected
+
+
+def test_k_property_matches_severities_length(tasksets):
+    ladder = build_ladder(tasksets[0], [0.0, 0.2, 0.5, 0.9])
+    assert ladder.k == 5

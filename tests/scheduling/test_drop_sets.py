@@ -9,11 +9,13 @@ by construction and the multi-level scheme has no JNE-against-LDM trade-off.
 from __future__ import annotations
 
 import itertools
+import math
 
 import pytest
 
 from amc_tasksim.generation.taskset import TaskSet, generate_taskset
 from amc_tasksim.scheduling.amc_rtb import (
+    amc_rtb,
     busy_period_bound,
     is_nontrivial_amc_taskset,
     normal_mode_schedulable,
@@ -25,6 +27,7 @@ from amc_tasksim.scheduling.drop_sets import (
     by_utilisation,
     drop_ladder,
     drop_set_at_severity,
+    drop_set_shed_early,
     is_feasible,
     response_time,
 )
@@ -338,3 +341,106 @@ def test_nontrivial_amc_population_is_always_feasible_at_full_severity():
     assert kept, "no qualifying task sets found"
     for ts in kept:
         assert drop_set_at_severity(ts, 1.0) is not None
+
+
+# ---------------------------------------------------------------------------
+# Carry-in: what a shed task still costs before it stops releasing
+# ---------------------------------------------------------------------------
+
+
+def test_carry_in_of_zero_matches_charging_a_shed_task_nothing(tasksets):
+    """carry_in[k] = 0 is the old instantaneous-shedding assumption exactly."""
+    for ts in tasksets[:8]:
+        lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
+        budgets = severity_budgets(ts, 1.0)
+        for i in range(ts.n):
+            optimistic = response_time(ts, i, budgets, set(lo))
+            zeroed = response_time(ts, i, budgets, set(lo), dict.fromkeys(lo, 0.0))
+            assert optimistic == zeroed
+
+
+def test_infinite_carry_in_matches_never_shedding_at_all(tasksets):
+    """carry_in[k] = inf charges k in full, as though it had never been shed."""
+    for ts in tasksets[:8]:
+        lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
+        budgets = severity_budgets(ts, 1.0)
+        for i in range(ts.n):
+            unshed = response_time(ts, i, budgets, set())
+            no_bound = response_time(ts, i, budgets, set(lo), dict.fromkeys(lo, math.inf))
+            assert unshed == no_bound
+
+
+def test_carry_in_is_monotone_in_the_shed_instant(tasksets):
+    """Shedding earlier never raises the response time -- Mechanism 1's engine."""
+    for ts in tasksets[:8]:
+        lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
+        budgets = severity_budgets(ts, 1.0)
+        for i in range(ts.n):
+            prev = -1.0
+            for s in (0, 5, 25, 100, 1000, math.inf):
+                r = response_time(ts, i, budgets, set(lo), dict.fromkeys(lo, s))
+                assert r >= prev
+                prev = r
+
+
+def test_carry_in_reproduces_amc_rtb_when_everything_sheds_at_r_lo(tasksets):
+    """chi=1, S=all LO, s=R_i(LO) is exactly AMC-rtb's equation (2)."""
+    for ts in tasksets[:8]:
+        res = amc_rtb(ts)
+        lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
+        budgets = severity_budgets(ts, 1.0)
+        for i in range(ts.n):
+            if ts.criticality[i] != "HI" or res.r_hi[i] > ts.D[i]:
+                continue
+            got = response_time(ts, i, budgets, set(lo), dict.fromkeys(lo, float(res.r_lo[i])))
+            assert got == float(res.r_hi[i])
+
+
+def test_shed_early_is_feasible_exactly_when_amc_rtb_passes(tasksets):
+    """Shedding everything at R_i(LO) *is* AMC-rtb's equation (2).
+
+    So the shed-early policy can certify a task set precisely when the classic
+    two-level test can -- it never demands more than AMC-rtb, and never rescues
+    a set AMC-rtb rejects. That is the property that makes it a drop-in
+    replacement for progressive shedding rather than a stricter criterion.
+    """
+    for ts in tasksets:
+        rtb_ok = all(
+            r <= d
+            for r, d, c in zip(amc_rtb(ts).r_hi, ts.D, ts.criticality)
+            if c == "HI"
+        )
+        assert (drop_set_shed_early(ts, [0.5, 1.0, 1.0]) is not None) == rtb_ok
+
+
+def test_shed_early_is_feasible_where_progressive_shedding_is_not(tasksets):
+    """The result that makes shedding early the endorsed policy.
+
+    Progressive shedding credits a task shed at a deep rung with that rung's
+    R_i(chi), which is infinite for a third of HI tasks at chi=1 -- so the
+    analysis charges it in full and the rung cannot be certified. Shedding
+    everything at rung 1 always has a finite bound, R_i(LO).
+    """
+    trig, oper = [0.0, 0.5, 1.0], [0.5, 1.0, 1.0]
+    early_ok = sum(drop_set_shed_early(ts, oper, trig[0]) is not None for ts in tasksets)
+    progressive_ok = sum(
+        drop_ladder(ts, oper, trigger_severities=trig, charge_carry_in=True) is not None
+        for ts in tasksets
+    )
+    assert progressive_ok < early_ok, (
+        "progressive shedding is expected to fail on part of the population; "
+        f"got {progressive_ok} feasible against shed-early's {early_ok}"
+    )
+
+
+def test_shed_early_sheds_less_than_two_level_amc(tasksets):
+    """Still a strict improvement on abandoning every LO task, once carry-in is paid."""
+    fractions = []
+    for ts in tasksets:
+        early = drop_set_shed_early(ts, [0.5, 1.0, 1.0])
+        if early is None:
+            continue  # fails AMC-rtb; no policy can rescue it
+        lo = [i for i in range(ts.n) if ts.criticality[i] == "LO"]
+        fractions.append(len(early) / len(lo))
+    assert fractions
+    assert sum(fractions) / len(fractions) < 1.0
