@@ -31,6 +31,13 @@
 
 This document presents the formal task set model used in our research on multi-mode mixed-criticality (MC) scheduling. The model extends traditional two-mode Adaptive Mixed-Criticality (AMC) scheduling to support multiple criticality levels, enabling graded degradation rather than binary normal/degraded transitions.
 
+\textbf{Key analysis principle:} Safety certification is performed for only two modes:
+\begin{enumerate}
+    \item \textbf{Normal mode ($L_0$):} All tasks execute with their normal budgets $C_i^{\mathrm{lo}}$
+    \item \textbf{HI-criticality mode:} HI tasks execute with budget $C_i^{\mathrm{hi}}$, LO tasks are abandoned
+\end{enumerate}
+The intermediate degradation levels ($L_1$ through $L_{k-2}$) use runtime-only execution budgets that do not affect safety invariants.
+
 The model builds upon the foundational work presented in:
 
 \begin{itemize}
