@@ -115,10 +115,28 @@ rejection or projection step.
 
 ### Optimization Method
 
-Exactly one method is used: **exhaustive enumeration of the ordered trigger lattice,
-evaluated under common random numbers**. The rationale is below; it is recorded here
-rather than in a comparison table because the choice follows from the structure of this
-problem and should not be re-litigated per experiment.
+**Working hypothesis, not yet a settled conclusion**: exhaustive enumeration of the
+ordered trigger lattice, evaluated under common random numbers. The structural rationale
+is below. It has NOT yet been checked against a real comparison with a competing method
+(a genetic algorithm, say) run under a matched evaluation budget — that comparison is
+Phase B of the staged protocol in `research/mode_optimization.tex`, and it needs the
+k-level engine, which doesn't exist yet.
+
+Two of that protocol's three phases HAVE already run, on real infrastructure, with real
+data (`research/mode_optimization.tex`, "A Staged Empirical Protocol"): a landscape pilot
+confirmed trigger frequency is empirically non-increasing in severity across 16 task sets
+(zero violations, matching property B), and a budget-calibration pilot found something
+the structural argument below would not have surfaced on its own — quadrupling seeds per
+task set left the paired standard error *unchanged* (0.92x, not the ~2x sqrt-scaling
+would predict), because between-task-set variance (CV 0.89) dominates Monte Carlo noise
+within a task set. The lever that actually narrows the comparison is more task sets, not
+more seeds per task set. `required_pairs()` in `amc_tasksim/experiments/contract.py`
+already answers "how many task sets"; its docstring now carries this finding.
+
+The rationale below is why enumeration is a reasonable place to START, not confirmation
+that it's right — it is recorded here rather than in a comparison table because the
+choice follows from the structure of this problem, but "follows from the structure" is
+an argument, not a measurement, and Phase B is what turns it into one.
 
 ```python
 from itertools import combinations_with_replacement
