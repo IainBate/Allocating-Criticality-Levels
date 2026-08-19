@@ -56,6 +56,18 @@ def find_tectonic() -> str | None:
     return shutil.which("tectonic")
 
 
+def is_standalone_document(tex_path: Path) -> bool:
+    """Whether this file is compilable on its own rather than an \\input fragment.
+
+    A project can have shared files (macros.tex, a results table someone
+    \\input's) that have no \\documentclass and are never compiled directly.
+    Trying to compile one produces a failure that is not about the file's
+    content, so those are skipped rather than reported as broken.
+    """
+    content = tex_path.read_text(errors="replace")
+    return bool(re.search(r"\\documentclass", content))
+
+
 def compile_check(tex_path: Path) -> list[str]:
     """Compile ``tex_path`` and return a list of problems found in the log.
 
