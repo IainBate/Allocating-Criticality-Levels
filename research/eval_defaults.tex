@@ -1,0 +1,16 @@
+% Default parameter values quoted in evaluation_methodology.tex, defined once
+% here rather than as literals scattered through the text.
+%
+% These MUST match amc_tasksim.generation.taskset.generate_taskset's actual
+% keyword defaults -- tests/generation/test_paper_defaults.py asserts this by
+% parsing the \newcommand definitions below and comparing them against
+% inspect.signature(generate_taskset), so the paper cannot silently drift from
+% what the code actually does. Update both together.
+
+\newcommand{\defaultNumTasks}{20}
+\newcommand{\defaultCP}{0.5}
+\newcommand{\defaultU}{0.8}
+\newcommand{\defaultInvFailProb}{10000}
+\newcommand{\defaultTmin}{100}
+\newcommand{\defaultTmax}{10000}
+\newcommand{\defaultBCETmin}{0.8}
