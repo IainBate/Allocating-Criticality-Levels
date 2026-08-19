@@ -234,6 +234,173 @@ orders of magnitude more task sets to resolve the same effect
 requirement every method in \Cref{sec:related-work} shares, and the one a
 choice of \emph{method} cannot substitute for.
 
+\section{A Staged Empirical Protocol}
+\label{sec:protocol}
+
+Choosing a method well needs three things a one-shot argument cannot supply:
+a measured landscape to reason from instead of an assumed one, a real
+comparison between candidate methods rather than a critique of each in
+isolation, and a evaluation budget sized to the noise actually observed
+rather than picked by convention. The protocol below produces each in turn,
+each phase's output gating the next. Two of the three phases already have a
+worked pilot with real data, run on the infrastructure that exists today
+(\Cref{sec:landscape}'s severity-indexed response time and the two-level
+engine); the third needs the $k$-level engine that does not yet exist and is
+specified precisely so it is ready once that engine does.
+
+\subsection{Phase A: Landscape Characterisation}
+\label{sec:phase-a}
+
+\textbf{Question.} How does the objective actually vary with severity, and
+how much of that variation is signal versus noise at a practical seed
+budget?
+
+\textbf{Method.} Sweep a coarse severity grid against a small, diverse task
+set ensemble (spanning the utilisation range this work studies), holding the
+seed block fixed across every grid point (common random numbers). This does
+not yet require the $k$-level engine: the severity-indexed trigger
+$R_i(\chi)$ (\Cref{sec:severity-response} of the task model) can be dropped
+into the existing two-level engine as a single threshold, in place of
+$R_i^{\mathrm{lo}}$, isolating one dimension of the eventual landscape --
+trigger \emph{frequency} as a function of severity -- without yet modelling a
+graded operating budget or a nested drop set. That is a real limitation, not
+a simplification of convenience: it characterises when a level would fire,
+not what $\Phi$ would be once it does, so it is necessary but not sufficient
+evidence for \Cref{sec:hypothesis}.
+
+\textbf{Pilot (executed).} 16 task sets (4 at each of $U \in \{0.6, 0.7, 0.8,
+0.9\}$, $n=20$ tasks each, R1-schedulable), $\chi \in \{0, 0.05, 0.1, 0.2,
+0.3, 0.5, 0.7, 1.0\}$, 24 seeds per (task set, $\chi$) pair, $10^6$-tick
+horizon scaled to $4{\times}10^5$ ticks, $f_p = 5{\times}10^{-3}$: 3{,}072
+simulation runs in 84\,s ($\approx 27\,\mathrm{ms}$/run).
+
+\begin{table}[h]
+\centering
+\caption{Trigger frequency (NiD) and abandoned jobs (JNE) vs.\ severity, mean over the ensemble $\pm$ standard error}
+\begin{tabular}{lccc}
+\toprule
+$\chi$ & mean NiD & mean JNE & mean TiD \\
+\midrule
+0.00 & $7.33 \pm 1.55$ & $3.87 \pm 0.71$ & $0.00100 \pm 0.00014$ \\
+0.05 & $6.91 \pm 1.49$ & $3.31 \pm 0.64$ & $0.00085 \pm 0.00013$ \\
+0.10 & $6.60 \pm 1.47$ & $2.85 \pm 0.59$ & $0.00074 \pm 0.00012$ \\
+0.20 & $5.30 \pm 1.14$ & $1.90 \pm 0.45$ & $0.00046 \pm 0.00009$ \\
+0.30 & $4.60 \pm 1.05$ & $1.21 \pm 0.33$ & $0.00031 \pm 0.00007$ \\
+0.50 & $3.54 \pm 0.93$ & $0.41 \pm 0.15$ & $0.00011 \pm 0.00003$ \\
+0.70 & $1.39 \pm 0.45$ & $0.08 \pm 0.04$ & $0.00002 \pm 0.00001$ \\
+1.00 & $0.00 \pm 0.00$ & $0.00 \pm 0.00$ & $0.00000 \pm 0.00000$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Findings.} (i) Mean NiD is non-increasing across all seven consecutive
+pairs of grid points -- zero violations -- which is an observable, testable
+consequence of property (B) (\Cref{sec:severity-response}) rather than an
+independent discovery, and it is reassuring that the data does not contradict
+it. (ii) At $\chi = 1$, NiD is exactly zero for every task set in this
+ensemble at this seed budget: charging every task uniformly at
+$C_i^{\mathrm{hi}}$ is conservative enough that, for an R1-schedulable
+population not further filtered for being AMC-rtb non-trivial, the deepest
+severity is rarely or never reached inside a $4 \times 10^5$-tick horizon.
+(iii) The between-task-set coefficient of variation at $\chi = 0.1$ is
+$\mathbf{0.89}$ -- larger than the per-seed noise reported in
+\Cref{sec:landscape} -- confirming that task-set-to-task-set variation, not
+Monte Carlo noise within a task set, is the dominant source of spread in this
+comparison, which is what \Cref{sec:phase-c} exploits directly.
+
+\textbf{Exit criterion.} A characterisation this coarse cannot certify
+smoothness, only fail to contradict it; the finding that matters for
+\Cref{sec:phase-b} is that the signal (a several-fold change in NiD across
+the grid) is large relative to the per-point standard error, so a method
+comparison built on this ensemble is comparing something real, not noise.
+
+\subsection{Phase B: Method Comparison}
+\label{sec:phase-b}
+
+\textbf{Question.} Under a matched evaluation budget, does any candidate
+method from \Cref{sec:related-work} find a materially better configuration
+than exhaustive enumeration, or find a comparable one for less?
+
+\textbf{Method.} Fix a total evaluation budget equal to what exhaustive
+enumeration spends at a chosen $k$ (lattice size $\times$ seed budget from
+\Cref{sec:phase-c}). Give a genetic algorithm and a random-search baseline
+the identical budget, each repeated independently several times with
+different internal random seeds -- the metaheuristics carry their own
+randomness on top of the simulator's, and a single run of either cannot
+distinguish a good method from a lucky one. Report, per method: regret
+against the enumeration's known optimum (enumeration is exhaustive, so it is
+the ground truth this comparison needs, not an estimate); the variance of the
+reported optimum across the method's own repeated runs; and wall-clock cost.
+
+\textbf{Status.} Not yet executed. \Cref{sec:phase-a}'s pilot uses the
+existing two-level engine as a stand-in for a single trigger; a real
+comparison needs $\Phi$ from an actual $k$-level run (graded operating
+budget, nested drop set), which needs the $k$-level engine this project has
+not yet built. This phase is specified precisely so it can run as soon as
+that engine exists, rather than being designed after the fact once it is
+built.
+
+\subsection{Phase C: Budget Calibration}
+\label{sec:phase-c}
+
+\textbf{Question.} How many task sets and how many seeds per task set does
+the eventual comparison actually need -- enough for the study's stated 5\%
+practical-significance threshold to be resolvable, not more than that?
+
+\textbf{Method.} Run a small pilot, aggregate to one value per task set
+(\texttt{aggregate\_by\_taskset}), and feed the pilot into
+\texttt{required\_pairs()} (\texttt{amc\_tasksim.experiments.contract}) to
+estimate the ensemble size the target effect needs. Then confirm the
+prediction empirically -- rerun at the predicted scale and check the
+standard error actually narrowed as predicted -- \emph{before} committing the
+full study's compute budget to it.
+
+\textbf{Pilot (executed).} Comparing two adjacent, hard-to-separate severities
+from \Cref{sec:phase-a} ($\chi = 0$ vs.\ $\chi = 0.05$) on JNE, with the same
+16-task-set ensemble and 10 seeds per task set:
+
+\begin{quote}
+\ttfamily
+n=16\ \ diff=-0.469 (-12.8\%)\ \ 95\% CI [-0.652, -0.286]\ \ resolvable=5.0\%\ \ practically significant
+\end{quote}
+
+\texttt{required\_pairs()} against a 5\% target effect returned \textbf{54}
+task sets, against the pilot's 16.
+
+\textbf{The confirmation step did not go as expected, and that is the
+finding.} The first attempt scaled the wrong axis -- seeds per task set,
+$10 \to 40$ -- expecting the standard error to roughly halve
+($1/\sqrt{4}$). It did not: the ratio measured was $0.92\times$, not
+$2\times$. Re-running instead with \texttt{required\_pairs()}'s actual axis,
+task-set count ($16 \to 32 \to 64$, seeds held at 10), gave resolvable bounds
+of $5.0\% \to 6.4\% \to 4.5\%$ -- noisy, but tracking in the right direction,
+unlike the seed-count attempt. \Cref{sec:phase-a}'s between-task-set
+CV of 0.89 explains why directly: when between-task-set variance dominates
+Monte Carlo noise within a task set, adding seeds to each task set narrows
+only the smaller component, and the paired standard error barely moves.
+\textbf{The lever that narrows it is more task sets, not more seeds per task
+set} -- the opposite of the first, more natural-seeming instinct, and not
+something the structural argument in \Cref{sec:hypothesis} would have
+surfaced on its own.
+
+\textbf{Exit criterion.} A calibrated (ensemble size, seed count) pair,
+confirmed by rerunning at that scale and checking the resolvable bound
+against the target -- not merely computed once and trusted.
+
+\section{What This Protocol Does and Does Not Yet Establish}
+
+Phases A and C, run above on real infrastructure, both survive: property
+(B)'s practical consequence held with zero violations across the ensemble,
+and \Cref{sec:hypothesis}'s claim about paired evaluation being necessary was
+independently reinforced by a second, unrelated route (the seeds-vs-task-sets
+finding) rather than merely repeated. Neither result depended on assuming
+$\Phi$'s shape, which is the property \Cref{sec:hypothesis} needs. Phase B --
+the actual test of enumeration against a competing method, which is the part
+of \Cref{sec:hypothesis} closest to being an unverified assertion rather than
+a structural fact -- has not run, and \Cref{sec:hypothesis} should be read
+accordingly: a well-motivated prior with two of its three empirical checks
+passed, not a settled conclusion.
+
 \bibliographystyle{plain}
 \bibliography{project_bib,references}
 
