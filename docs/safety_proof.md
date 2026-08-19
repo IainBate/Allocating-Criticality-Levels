@@ -107,17 +107,29 @@ Therefore, $T_{\mathrm{degraded}}^{\text{multi-level}} \leq T_{\mathrm{degraded}
 
 **Statement**: The number of LO jobs not executed (JNE) in the multi-level scheme is at most that of AMC-RH.
 
-*Proof*: 
+*Proof*: Compare the two schemes on the same arrival sequence and the same
+execution times.
 
-1. In AMC-RH, all LO jobs are dropped when entering degraded mode.
+1. By property **(C)**, no level of the ladder fires before $R_i(\mathrm{LO})$,
+   which is AMC-RH's trigger. So at every instant $t$ at which the multi-level
+   scheme is abandoning LO-criticality releases, AMC-RH is abandoning them too.
 
-2. In the multi-level scheme:
-   - Intermediate levels drop only a subset of LO tasks
-   - Only $L_{k-1}$ (fully degraded) drops all LO tasks
+2. By property **(A)**, $L_1$ fires exactly at $R_i(\mathrm{LO})$, so the
+   converse also holds: the two schemes begin shedding at the same instant.
 
-3. Since the system may spend time in intermediate levels where some LO tasks run normally, and full degradation occurs at the same trigger point as AMC-RH, the total JNE cannot exceed the AMC-RH case.
+3. At any such instant the multi-level scheme abandons only releases of tasks in
+   $S_x \subseteq \mathrm{LO}$, whereas AMC-RH abandons releases of every
+   LO-criticality task.
 
-$\square$
+So at every instant the multi-level drop set is a subset of AMC-RH's, and the
+abandoned-job count is a pointwise-dominated sum. $\square$
+
+> **This corollary was previously false and is now true only because of the
+> ladder.** Under the earlier fraction-based triggers, step 1 fails: levels
+> fired *below* $R_i(\mathrm{LO})$, so the scheme abandoned jobs at instants
+> when AMC-RH was still running everything, and JNE went **up**, not down —
+> measured at 356 abandoned jobs against AMC-RH's zero, with no fault present.
+> Property (C) is precisely what step 1 needs.
 
 ## Theorem 3: Schedulability Preservation
 
