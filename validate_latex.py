@@ -169,13 +169,23 @@ def main(argv: list[str]) -> int:
         return 0
 
     all_problems: dict[str, list[str]] = {}
+    checked = 0
+    skipped = []
     for filepath in tex_files:
+        if not is_standalone_document(filepath):
+            skipped.append(str(filepath))
+            continue
+        checked += 1
         problems = compile_check(filepath)
         if problems:
             all_problems[str(filepath)] = problems
 
+    if skipped:
+        print(f"(skipped {len(skipped)} \\input fragment(s), no \\documentclass: "
+              f"{', '.join(skipped)})")
+
     if not all_problems:
-        print(f"\u2713 All {len(tex_files)} LaTeX file(s) compiled cleanly")
+        print(f"\u2713 All {checked} standalone LaTeX document(s) compiled cleanly")
         return 0
 
     print(f"\n\u2717 {len(all_problems)} file(s) failed to compile cleanly:\n")
