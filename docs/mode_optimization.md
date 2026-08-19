@@ -221,18 +221,33 @@ def evaluate_objective(tasksets, k, x, seed_block):
     numbers). Do not derive it from the configuration.
     """
     return [
-        compute_objective(simulate_k_level(ts, k, x, drop_strategy="priority", seed=s))
+        # utilisation-first shedding matched the exhaustive minimum in every
+        # case tested (see drop_sets.py); priority-first sheds 73-78% more
+        # than necessary and is not a competitive default
+        compute_objective(simulate_k_level(ts, k, x, drop_strategy="utilisation", seed=s))
         for ts in tasksets
         for s in seed_block
     ]
 
 def compute_objective(result):
-    """Compute Φ = α·JNE + β·TiD + γ·WastedCPU."""
+    """Compute Φ = α·JNE + β·TiD + γ·WastedCPU + δ·LevelTrans.
+
+    See docs/metrics_objective.md "Proposed Objective: Hybrid Approach" for why
+    LevelTrans rather than NiD: NiD only counts exits from L_0 and is blind to
+    oscillation entirely within the degraded levels, which a badly-spaced
+    severity ladder can produce without ever showing up in NiD or TiD.
+    """
     alpha = get_alpha_by_utilisation(result.utilisation)   # weights adapt to U, not TiD
     beta = get_beta_by_utilisation(result.utilisation)
-    gamma = 0.1  # fixed small weight for waste
+    gamma = 0.1   # fixed small weight for waste
+    delta = 0.1   # fixed small weight for churn
 
-    return alpha * result.jne + beta * result.tid + gamma * result.wasted_cpu
+    return (
+        alpha * result.jne
+        + beta * result.tid
+        + gamma * result.wasted_cpu
+        + delta * result.level_trans
+    )
 ```
 
 #### Why the pairing is load-bearing
