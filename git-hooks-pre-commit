@@ -1,0 +1,18 @@
+#!/bin/sh
+#
+# Pre-commit hook for LaTeX validation
+# Runs validate_latex.py to check .tex files before commit
+
+# The script runs from project root (git calls it from there)
+echo "Running LaTeX validation..."
+
+python3 validate_latex.py 2>/dev/null
+
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "LaTeX validation failed. Please fix the issues above before committing."
+    exit 1
+fi
+
+# Continue with default git hooks (whitespace check)
+git diff-index --check --cached HEAD --
