@@ -255,11 +255,14 @@ original Corollary 1 is recovered verbatim.
 > where firing a rung would have changed anything. Enabling
 > $x_{\mathrm{LO}} = 1$ moves the service ratio by under 0.05 percentage points.
 >
-> The mechanism needs *intermediate tiers* — a task retained at $L_1$ and shed
-> only at $L_3$ — and those need progressive shedding, which the single-phase
-> carry-in bound cannot certify (130 of 199 task sets fail). The windowed
-> two-phase analysis is therefore a prerequisite for this mechanism having
-> content, not merely a tightening. Until then $x_{\mathrm{LO}} = 0$.
+> Tested since against an intermediate ladder with genuine middle tiers ($S_1$
+> at rung 1, $S_2$ at rung 2), where escalation *does* shed something new and
+> LO-criticality tasks demonstrably do fire rungs — level entries rise from
+> 3,900 to 3,942. The service ratio falls, from 0.9642 to 0.9640. Fully
+> enabled, the mechanism loses the exchange: escalating sheds the middle tier
+> immediately and with certainty, while the benefit is rare and worth at most
+> one job. $x_{\mathrm{LO}} = 1$ and $2$ give identical results, so this is not
+> an artefact of reach. Keep $x_{\mathrm{LO}} = 0$.
 
 ## Theorem 3: Schedulability Preservation
 

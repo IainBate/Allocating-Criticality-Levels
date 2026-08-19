@@ -619,32 +619,39 @@ ratio by less than $0.05$ percentage points and adds $20$ level entries in
 $12{,}714$. The reason is specific and worth stating, because it is not the
 reason one would guess.
 
-\textbf{Why it does not engage.} A LO-criticality task fires a rung in order to
-\emph{shed more work}. Under the shed-early policy that \Cref{sec:admissibility}
-concludes is the only certifiable one, there is a single drop set: every rung
-sheds the same tasks. Once $L_1$ has been entered there is nothing further any
-deeper rung can shed, so escalating has no content. And escalation is almost
-always already under way -- of $386$ terminations measured at $U = 0.7$ with
-deadlines tightened to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$,
-$376$ occurred while the system was \emph{already degraded} and only $10$ at
-$L_0$, the one state in which firing a rung would have changed anything.
+\textbf{Why it does not engage.} The mechanism has been tested against three
+successive designs, each of which removed the previous explanation for its
+failure:
 
-Of those $386$, $298$ fell on tasks in the drop set -- in-flight jobs not
-abandoned because abandonment is on release -- and $88$ on retained tasks.
-The $88$ are the mechanism's entire addressable population, against a JNE loss
-of $11.0\%$ of all jobs in the same configuration. Even captured perfectly it
-would be a second-order effect.
+\begin{enumerate}
+\item \emph{Clause 2 enforced, one drop set.} A retained LO-criticality task is
+  certified to complete, so none is ever at risk; and a shed task has
+  $\ell_i = 0$ and may fire no rung. No task is both permitted to use the
+  mechanism and in need of it.
+\item \emph{Clause 2 relaxed, one drop set.} Retained tasks are now
+  best-effort, so they \emph{can} be at risk -- but with a single drop set,
+  entering a deeper rung sheds nothing further, so escalating has no content.
+  Of $386$ terminations measured at $U = 0.7$ with tightened deadlines, $376$
+  occurred while the system was \emph{already degraded}.
+\item \emph{Intermediate ladder, genuine middle tiers.} $S_1$ at rung 1 and
+  $S_2$ at rung 2, so escalation does shed something new and a guaranteed-tier
+  task can act. LO-criticality tasks now demonstrably do fire rungs -- level
+  entries rise from $3{,}900$ to $3{,}942$ at $U = 0.70$. The service ratio
+  falls from $0.9642$ to $0.9640$.
+\end{enumerate}
 
-\textbf{What would make it work.} The mechanism needs \emph{intermediate
-tiers}: a task retained at $L_1$ and shed only at $L_3$ is one that escalation
-can actually do something about. Intermediate tiers require progressive
-shedding, which the single-phase carry-in bound of \Cref{sec:shed-aware} cannot
-certify -- $130$ of $199$ task sets fail it, for the reason given in
-\Cref{sec:admissibility}. The windowed two-phase analysis noted there as the
-natural next step is therefore not merely a tightening: it is the prerequisite
-for this mechanism having any content at all. Until it exists,
-$x_{\mathrm{LO}}$ should be left at $0$, and the generalised trigger retained in
-the model as the mechanism that certifiable intermediate tiers would activate.
+\noindent In the third design the mechanism is fully enabled and simply loses
+the exchange. Escalating early sheds the middle tier \emph{immediately and with
+certainty}; the benefit -- one struggling task completing that otherwise would
+not -- is rare and worth at most one job. Raising $x_{\mathrm{LO}}$ from 1 to 2
+changes nothing further, so the result is not an artefact of how deep a
+LO-criticality task is permitted to reach.
+
+This is a negative result about the mechanism, not about the trigger rule that
+supports it. The rule is retained in the model because it is what a different
+cost structure would activate: it costs nothing when $x_{\mathrm{LO}} = 0$, and
+the blind spot it addresses is real and large even though closing it does not
+currently pay.
 
 The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
 $R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
