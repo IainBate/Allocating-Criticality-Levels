@@ -235,6 +235,16 @@ orders of magnitude more task sets to resolve the same effect
 requirement every method in \Cref{sec:related-work} shares, and the one a
 choice of \emph{method} cannot substitute for.
 
+\textbf{Retrospective note.} The hypothesis is confirmed, but not by the
+comparison this section anticipated running. \Cref{sec:bounded-gain-results}
+shows exhaustive search's own upper bound on what any method could win over
+the default configuration is $0.79\%$ -- so the reason enumeration was the
+right choice is not that it beat a genetic algorithm in a head-to-head test,
+but that the prize on offer was never large enough for the choice of method to
+matter. That is a stronger vindication of the structural argument above than a
+head-to-head win would have been: it is not that enumeration happened to find
+a better point, it is that no method could have found a materially better one.
+
 \section{A Staged Empirical Protocol}
 \label{sec:protocol}
 
