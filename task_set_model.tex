@@ -281,13 +281,16 @@ Symbol & Meaning \\
 \midrule
 $\tau$ & Task set \\
 $n$ & Number of tasks \\
-$k$ & Number of degradation levels \\
+$k$ & Number of degradation levels ($k \geq 2$) \\
 $\kappa_i$ & Criticality of task $i$ ($\mathrm{HI}$ or $\mathrm{LO}$) \\
 $T_i, D_i$ & Period and deadline of task $i$ \\
-$C_i^{\mathrm{lo}}, C_i^{\mathrm{hi}}$ & Execution budgets in LO/HI modes \\
+$C_i^{(0)} = C_i^{\mathrm{lo}}$ & Normal mode execution budget (analyzed) \\
+$C_i^{(1)}, \dots, C_i^{(k-2)}$ & Intermediate runtime budgets (runtime-only) \\
+$C_i^{(k-1)} = C_i^{\mathrm{hi}}$ & Fully degraded budget (analyzed for HI tasks) \\
 $\mathrm{BCET}_i$ & Best-case execution time \\
-$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes \\
-$R_i^{\mathrm{lo}}, R_i^{\mathrm{hi}}$ & Response times in LO/HI modes \\
+$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes (analyzed) \\
+$R_i^{\mathrm{lo}}, R_i^{\mathrm{hi}}$ & Response times in LO/HI modes (analyzed) \\
+$R_{\mathrm{trigger}}$ & AMC-RH trigger point = $R_i^{\mathrm{lo}}$ for HI tasks \\
 $FP = 1/N$ & HI-behaviour probability per job \\
 $\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
 $L_x$ & Degradation level $x$ ($0 \leq x < k$) \\
