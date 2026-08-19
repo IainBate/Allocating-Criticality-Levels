@@ -39,7 +39,195 @@ tasks it keeps running -- is checked at design time against exactly this
 analysis, generalised across levels rather than restricted to two
 (\Cref{sec:admissibility}).
 
+\textbf{What this revision adds.} Three changes, each motivated by a worked
+example in \Cref{sec:motivating} and each with a consequence that is not
+cosmetic:
+
+\begin{enumerate}
+\item A \emph{shed-aware} response time $R_i(\chi, S, s)$
+  (\Cref{sec:shed-aware}) that charges a shed task for the jobs it released
+  before it stopped. It specialises to the normal-mode bound, to the severity
+  trigger, and to AMC-rtb exactly, so it subsumes rather than replaces them --
+  and it makes the instant of shedding an argument of the analysis, which is
+  what lets the analysis prefer shedding early.
+\item An \emph{allocated criticality level} $\ell_i$
+  (\Cref{sec:criticality-levels}) ordering tasks within the LO-criticality tier
+  as well as across the HI/LO divide, because response-time analysis certifies
+  which sets are safe to shed but cannot rank the safe ones.
+\item A \emph{generalised trigger} (\Cref{sec:transition}) under which any task
+  a rung would protect may demand that rung, with a parameter
+  $x_{\mathrm{LO}}$ bounding how deep a LO-criticality task may reach. This
+  detects overruns that the two-level trigger provably cannot see, at the cost
+  of a containment guarantee that must be restated rather than assumed.
+\end{enumerate}
+
+The most consequential finding is negative, and is stated in
+\Cref{sec:admissibility}: once shedding is charged honestly, \emph{progressive}
+shedding cannot be certified on $47\%$ of an otherwise schedulable population,
+while shedding the same tasks at the shallowest rung is always certifiable and
+never sheds more. Grading therefore belongs in the budgets, not in the drop
+sets.
+
 The model builds upon the foundational work presented in~\cite{9804600}.
+
+\section{Motivating Examples}
+\label{sec:motivating}
+
+Three situations that classic two-level AMC handles badly, each motivating one
+feature of the model that follows. They are worked out concretely rather than
+described, because in every case the argument turns on the gap between a
+worst-case response-time \emph{bound} and the response time actually observed.
+Every schedule and every number below is reproduced by the accompanying
+implementation.
+
+\subsection{Example 1: deferring the shed starves the task it protects}
+\label{sec:ex-defer}
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Task & $\kappa_i$ & Priority & $T_i = D_i$ & $C_i^{\mathrm{lo}}$ & $C_i^{\mathrm{hi}}$ \\
+\midrule
+$\tau_1$ & LO & 0 (high) & 10  & 4 & -- \\
+$\tau_2$ & HI & 1        & 50  & 8 & 20 \\
+$\tau_3$ & LO & 2 (low)  & 100 & 5 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Here $R_2(0) = R_2^{\mathrm{lo}} = 16$ and $R_2(1) = 36$, so the
+shallowest rung fires at $t = 16$ and the deepest at $t = 36$. Suppose
+$\tau_2$ exhibits HI-criticality behaviour and executes its full
+$C_2^{\mathrm{hi}} = 20$, with every task released at $t = 0$:
+
+\begin{center}
+\begin{tabular}{ll}
+\toprule
+(a) nothing shed & \texttt{1111222222111122222211112222221111223333} \\
+(b) $\tau_1$ shed at $t = 16$ & \texttt{111122222211112222222222222233333\ldots\ldots.} \\
+ & \texttt{0~~~~~~~~~10~~~~~~~~20~~~~~~~~30~~~~~~~~40} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent In (a) $\tau_2$ completes at $t = 36$: it is preempted for four ticks
+in every ten by $\tau_1$, so it accrues execution at $6/10$ of real time and
+takes $36$ ticks of wall-clock to consume $20$ ticks of budget. It therefore
+\emph{reaches the deepest rung at the very instant it finishes}, and the
+deepest rung abandons every LO-criticality task -- $\tau_3$ included, which was
+never the problem.
+
+In (b) the single higher-priority LO-criticality task is shed at the
+\emph{shallowest} rung, at $t = 16$. $\tau_2$ then runs uninterrupted and
+completes at $t = 28$, so $R_2(1) = 36$ is never reached and the deepest rung
+never fires. The cost is four abandoned releases of $\tau_1$; the saving is
+that $\tau_3$ is not abandoned at all and the system never fully degrades.
+
+The point is not that $\tau_2$ needed a larger budget -- it was entitled to
+$C_2^{\mathrm{hi}}$ throughout, and (b) does not give it one tick more. It is
+that a run-time trigger measures \emph{elapsed time} while a job's progress is
+\emph{execution time}, and higher-priority LO-criticality work drives a wedge
+between the two. Shedding that work early converts elapsed time into progress.
+This is why \Cref{sec:shed-aware} makes the shed instant an argument of the
+response-time bound, and why \Cref{sec:admissibility} concludes that shedding
+belongs at the shallowest rung.
+
+\subsection{Example 2: safety does not determine which tasks to keep}
+\label{sec:ex-order}
+
+Task set seed 7 of the generator ($n = 6$, $U = 0.7$, $CF = 2$), priorities by
+Audsley's algorithm:
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Task & $\kappa_i$ & Priority & $T_i = D_i$ & $C_i^{\mathrm{lo}}$ & $C_i^{\mathrm{hi}}$ \\
+\midrule
+$\tau_5$ & LO & 0 & 398  & 64   & --   \\
+$\tau_4$ & LO & 1 & 282  & 38   & --   \\
+$\tau_3$ & HI & 2 & 3559 & 164  & 423  \\
+$\tau_1$ & HI & 3 & 1779 & 2    & 5    \\
+$\tau_2$ & HI & 4 & 6229 & 496  & 3605 \\
+$\tau_6$ & LO & 5 & 5586 & 1547 & --   \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Enumerating every subset of $\{\tau_4, \tau_5, \tau_6\}$ against the
+admissibility criterion of \Cref{sec:admissibility} yields exactly two
+\emph{minimal} admissible drop sets:
+
+\[
+\{\tau_4, \tau_6\} \;\text{(keeping } \tau_5\text{)}
+\qquad\text{and}\qquad
+\{\tau_5, \tau_6\} \;\text{(keeping } \tau_4\text{)} .
+\]
+
+Two-level AMC sheds all three. The graded scheme can keep one -- but
+\emph{which} one is not a question the analysis answers: both choices are
+equally safe, and both retain the same number of tasks. $\tau_4$ and $\tau_5$
+are interchangeable to response-time analysis and are not interchangeable to
+the application. The shedding heuristics of \Cref{sec:admissibility} disagree
+accordingly: ordering by utilisation or by execution time keeps $\tau_4$,
+ordering by priority keeps $\tau_5$.
+
+This is the gap an \emph{allocated criticality level} fills. Response-time
+analysis certifies that a set is safe to shed; it cannot rank the safe sets.
+\Cref{sec:criticality-levels} therefore replaces the binary
+$\kappa_i \in \{\mathrm{HI}, \mathrm{LO}\}$ with a level $\ell_i$ that orders
+tasks within the LO-criticality tier as well as across the divide.
+
+\subsection{Example 3: an overrun the two-level trigger cannot see}
+\label{sec:ex-blindspot}
+
+\begin{center}
+\begin{tabular}{lccccc}
+\toprule
+Task & $\kappa_i$ & Priority & $T_i = D_i$ & $C_i^{\mathrm{lo}}$ & $C_i^{\mathrm{hi}}$ \\
+\midrule
+$\tau_1$ & LO & 0 (high) & 10 & 3 & -- \\
+$\tau_2$ & HI & 1        & 20 & 2 & 4  \\
+$\tau_3$ & LO & 2 (low)  & 40 & 5 & -- \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent $R_2^{\mathrm{lo}} = 5$ and $R_3^{\mathrm{lo}} = 10$. Let $\tau_2$
+and $\tau_3$ be released at $t = 0$, let $\tau_1$'s next release fall at
+$t = 5$ (its previous job ran in $[-5, -2)$, so the processor is idle at
+$t = -1$ and $\tau_3$'s priority level-3 busy period genuinely begins at
+$t = 0$), and let $\tau_2$ execute its full $C_2^{\mathrm{hi}} = 4$:
+
+\begin{center}
+\begin{tabular}{l}
+\toprule
+\texttt{2222~3111~3333~...~111..} \\
+\texttt{0123~4567~8901~234~56789} \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent $\tau_2$ \emph{overruns} -- it executes $C_2^{\mathrm{hi}}$, twice its
+normal budget -- yet completes at $t = 4$, before its own trigger
+$R_2^{\mathrm{lo}} = 5$. Under two-level AMC, and under every rung of the
+ladder as stated in \Cref{sec:transition}, \textbf{the system never degrades at
+all}, because only a HI-criticality task may pull the trigger and this one beat
+its own bound. It beat it because $R_2^{\mathrm{lo}}$ budgets for a full
+interference term from $\tau_1$ that did not materialise in this release.
+
+The overrun did not vanish; it landed on $\tau_3$, which at $t = 10 =
+R_3^{\mathrm{lo}}$ has executed $3$ of its $5$ ticks and completes at $t = 12$.
+A LO-criticality task has slack of its own, but it is the last to absorb the
+error and the first to run out.
+
+So $\tau_3$ can detect an overrun that $\tau_2$ concealed. Letting it act on
+that detection -- shedding a lower-ranked LO-criticality task to protect
+itself -- is the second mechanism this model adds (\Cref{sec:transition}). It
+comes at a price that must be stated plainly: the scheme now degrades at
+instants when two-level AMC does not, so the guarantee that it never abandons
+more LO-criticality work than AMC-RH is \emph{false} in general. This example
+is the counterexample, and \Cref{sec:transition}'s parameter $x_{\mathrm{LO}}$
+is the dial that trades one against the other.
 
 \section{Task Model}
 
@@ -88,15 +276,37 @@ better-motivated member of that family is an open question, not a constraint
 this analysis depends on.
 
 \subsection{Criticality Assignment}
+\label{sec:criticality-levels}
 
-Each task is assigned a criticality level:
+Each task carries the conventional binary criticality
 \[
 \kappa_i \in \{\mathrm{HI}, \mathrm{LO}\}
 \]
+with $\tau^{\mathrm{HI}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{HI}\}$ and
+$\tau^{\mathrm{LO}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{LO}\}$. This
+governs the \emph{budget}: only a HI-criticality task has
+$C_i^{\mathrm{hi}} > C_i^{\mathrm{lo}}$, and only a HI-criticality task has a
+deadline obligation once fully degraded.
 
-Let $\tau^{\mathrm{HI}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{HI}\}$ and
-$\tau^{\mathrm{LO}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{LO}\}$ denote the
-HI-criticality and LO-criticality subsets, respectively.
+It does not, however, say anything about \emph{order of sacrifice} within the
+LO-criticality tier, and \Cref{sec:ex-order} shows that response-time analysis
+alone cannot supply one: a task set there admits two minimal drop sets of equal
+size, both provably safe, differing only in which LO-criticality task survives.
+So each task additionally carries an \emph{allocated criticality level}
+\[
+\ell_i \in \{1, \dots, k-1\},
+\]
+read as: \emph{$\tau_i$ runs at levels $L_1, \dots, L_{\ell_i}$ and is
+abandoned at $L_{\ell_i + 1}$}. Every HI-criticality task has
+$\ell_i = k-1$, since it is never abandoned. The allocation induces the drop
+sets directly,
+\[
+S_x = \{\, i \mid \ell_i < x \,\},
+\]
+which are nested by construction, so choosing the allocation and choosing the
+ladder of drop sets are the same act. Allocating those levels well is the
+optimisation this work exists to study; the present document fixes only what
+makes an allocation \emph{admissible} (\Cref{sec:admissibility}).
 
 \subsection{Utilisation}
 
@@ -149,15 +359,20 @@ task has been abandoned is the least fixed point of
 \[
 R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}}
   + \sum_{\tau_j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{\mathrm{hi}}
-  + \sum_{\tau_k \in \mathrm{hp}_{\mathrm{LO}}(i)} \min\!\left( \left\lceil \frac{R_i^{\mathrm{hi}}}{T_k} \right\rceil,\; \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil + 1 \right) C_k^{\mathrm{lo}}
+  + \sum_{\tau_k \in \mathrm{hp}_{\mathrm{LO}}(i)} \min\!\left( \left\lceil \frac{R_i^{\mathrm{hi}}}{T_k} \right\rceil,\; \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil \right) C_k^{\mathrm{lo}}
 \]
 where $\mathrm{hp}_{\mathrm{HI}}(i)$ and $\mathrm{hp}_{\mathrm{LO}}(i)$ are the
 higher-priority HI-criticality and LO-criticality tasks, respectively. The
 $\min(\cdot,\cdot)$ term bounds the interference from a higher-priority
-LO-criticality task by the number of its jobs that can still be in flight when
-degradation begins -- at most one more than it would have released by
-$R_i^{\mathrm{lo}}$ -- since every LO-criticality task is abandoned on release
-once fully degraded. A task set is AMC-rtb schedulable if $R_i^{\mathrm{hi}}
+LO-criticality task by the number of its jobs released before degradation
+begins, since every LO-criticality task is abandoned on release once fully
+degraded. The switch occurs at or before $R_i^{\mathrm{lo}}$ within $\tau_i$'s
+busy period, so $\tau_k$ releases at most
+$\lceil R_i^{\mathrm{lo}}/T_k \rceil$ jobs; the first argument of the $\min$ is
+the sound tightening that interference over a window of length
+$R_i^{\mathrm{hi}}$ cannot exceed $\lceil R_i^{\mathrm{hi}}/T_k \rceil$ jobs
+however early the switch occurs. A previous statement of this equation carried
+a spurious $+1$ on the second argument, which the implementation never had. A task set is AMC-rtb schedulable if $R_i^{\mathrm{hi}}
 \leq D_i$ for every $\tau_i \in \tau^{\mathrm{HI}}$ and $R_i^{\mathrm{lo}} \leq
 D_i$ for every $\tau_i \in \tau$.
 
@@ -214,6 +429,70 @@ R_i^{\mathrm{lo}}$ fired 14{,}118 times across twelve task sets, abandoning 356
 jobs with no fault present. Charging every task's own budget, rather than
 scaling the deadline, is what avoids this.
 
+\subsection{Shed-Aware Response Time}
+\label{sec:shed-aware}
+
+$R_i(\chi)$ above charges every LO-criticality task in full, as though none
+were ever shed. That is deliberately safe for a \emph{trigger}, but it is far
+too pessimistic for an \emph{obligation}: the whole point of a drop set is that
+the tasks in it stop releasing. Conversely, treating a shed task as vanishing
+the instant its level is entered -- which is what the analysis in this document
+originally did -- is optimistic, and unsound: abandonment is on release, so a
+job already in flight runs to completion and still interferes.
+
+Both are corners of one recurrence. Let $S$ be the set shed, and let $s_k$
+bound the instant, measured from the start of $\tau_i$'s busy period, at which
+$\tau_k \in S$ stopped releasing. Then $R_i(\chi, S, s)$ is the least fixed
+point of
+\[
+w = C_i(\chi)
+  + \sum_{\tau_j \in \mathrm{hp}(i) \setminus S} \left\lceil \frac{w}{T_j} \right\rceil C_j(\chi)
+  + \sum_{\tau_k \in \mathrm{hp}(i) \cap S}
+      \min\!\left( \left\lceil \frac{w}{T_k} \right\rceil,\;
+                   \left\lceil \frac{s_k}{T_k} \right\rceil \right) C_k^{\mathrm{lo}} .
+\]
+The $\min(\cdot, \cdot)$ term is exactly the one AMC-rtb applies to the
+two-level case, generalised to a per-task shed instant. Three specialisations
+recover everything already defined, and are checked as an equality (not an
+inequality) over $240$ HI-criticality tasks across $40$ task sets:
+
+\begin{center}
+\begin{tabular}{lll}
+\toprule
+Specialisation & Yields & Meaning \\
+\midrule
+$R_i(0, \emptyset, \cdot)$ & $R_i^{\mathrm{lo}}$ & \Cref{sec:r-lo} \\
+$R_i(\chi, \emptyset, \cdot)$ & $R_i(\chi)$ & \Cref{sec:severity-response}, the trigger \\
+$R_i(1, \tau^{\mathrm{LO}}, R_i^{\mathrm{lo}})$ & $R_i^{\mathrm{hi}}$ & \Cref{sec:amc-rtb}, AMC-rtb \\
+\bottomrule
+\end{tabular}
+\end{center}
+
+\noindent Three monotonicity properties follow directly, and the third is what
+\Cref{sec:ex-defer} illustrates:
+
+\begin{description}
+\item[(M1)] $R_i(\chi, S, s)$ is non-decreasing in $\chi$.
+\item[(M2)] $R_i(\chi, S, s)$ is non-increasing in $S$ under inclusion, because
+  $C_k^{\mathrm{lo}} = C_k(\chi)$ for every LO-criticality task.
+\item[(M3)] $R_i(\chi, S, s)$ is non-decreasing in each $s_k$: \textbf{shedding
+  earlier never hurts, and generally helps.}
+\end{description}
+
+\textbf{Where the shed instant comes from.} $s_k$ is not free. The rung that
+sheds $\tau_k$ is entered no later than $R_i(\chi_{\ell_k + 1})$ within
+$\tau_i$'s own busy period, because if $\tau_i$ is still incomplete at that
+instant then $\tau_i$ fires the rung itself. The argument is available only to
+a task that is permitted to fire that rung -- always true for a HI-criticality
+task, and true for a retained LO-criticality task exactly when
+$\ell_k + 1 \leq x_{\mathrm{LO}}$ (\Cref{sec:transition}). Where it is not
+available, $s_k = \infty$ and $\tau_k$ is charged in full, as though never shed.
+
+That caveat is not a technicality: $R_i(\chi) = \infty$ for $33\%$ of
+HI-criticality tasks at $\chi = 1$, so a task shed at the \emph{deepest} rung
+frequently has no finite bound at all. This is what drives the conclusion of
+\Cref{sec:admissibility}.
+
 \section{Multi-Level Degradation Model}
 \label{sec:multilevel}
 
@@ -257,12 +536,56 @@ principle Theorem 1 of the safety proof states for $L_0$ itself: protection
 begins no later than the classic trigger, never earlier.
 
 \subsection{Mode Transition Protocol}
+\label{sec:transition}
 
-The system transitions between degradation levels according to:
+Classically, only a HI-criticality task may pull the trigger:
+\[
+L_x \to L_{x+1} \quad \text{when } \exists\, \tau_i \in \tau^{\mathrm{HI}}:
+  \text{active job reaches } R_i(\chi_{x+1}).
+\]
+\Cref{sec:ex-blindspot} shows what that misses. A HI-criticality task can
+execute its full $C_i^{\mathrm{hi}}$ -- a genuine overrun -- and still complete
+before $R_i^{\mathrm{lo}}$, because $R_i^{\mathrm{lo}}$ budgets for interference
+that a particular release need not receive. The overrun is then invisible to
+every rung, while the LO-criticality task that absorbed it runs out of slack.
+
+The generalisation is to let \emph{any} task that a rung would protect demand
+that rung. Using the allocated levels of \Cref{sec:criticality-levels}:
 \begin{align*}
-L_x \to L_{x+1} &\quad \text{when } \exists\, \tau_i \in \tau^{\mathrm{HI}}: \text{active job reaches } R_i(\chi_{x+1}) \\
+L_x \to L_{x+1} &\quad \text{when } \exists\, \tau_i \text{ with } \ell_i \geq x+1
+  \text{ and } (\kappa_i = \mathrm{HI} \text{ or } x+1 \leq x_{\mathrm{LO}}):
+  \text{active job reaches } R_i(\chi_{x+1}) \\
 L_x \to L_y &\quad y < x \text{ on exit (direct or cascade, per protocol design)}
 \end{align*}
+A task never fires a rung that would abandon it ($\ell_i \geq x+1$), so the
+abandoned set is always a strict prefix of the criticality order.
+
+\textbf{The threshold is calculated, not searched.} A LO-criticality task's
+threshold for demanding rung $x$ is its own $R_i(\chi_x)$ -- the same quantity,
+computed the same way, as for a HI-criticality task. Soundness is the same one
+line: if every task had complied with $C(\chi_x)$, $\tau_i$ would have completed
+by $R_i(\chi_x)$, so reaching it is evidence that behaviour is at least that
+severe. Properties (A), (B) and (C) of \Cref{sec:severity-response} hold
+verbatim for LO-criticality tasks, so no rung fires earlier than the classic
+trigger and none fires with no fault present.
+
+The mechanism is not vacuous even though $C_i(\chi) = C_i^{\mathrm{lo}}$ for
+every LO-criticality task and every $\chi$: $R_i(\chi)$ still grows with $\chi$
+through the HI-criticality tasks in $\mathrm{hp}(i)$. Measured over $199$ task
+sets, $48\%$ of LO-criticality tasks have at least two distinct finite
+thresholds (median spread $56\%$ of the smallest), and $83\%$ have a
+higher-priority LO-criticality task available to shed.
+
+\textbf{The parameter $x_{\mathrm{LO}}$.} It is the deepest rung a
+LO-criticality task may fire, and it is a genuine dial rather than a
+convenience. At $x_{\mathrm{LO}} = 0$ only HI-criticality tasks trigger and the
+scheme provably abandons no more LO-criticality work than AMC-RH. Above $0$
+that containment is lost -- \Cref{sec:ex-blindspot} is the counterexample --
+and what is bought is protection for the higher-ranked LO-criticality tiers
+against overruns two-level AMC cannot detect. The safety consequences are set
+out in the accompanying safety proof; the trade is measured empirically rather
+than settled by argument.
+
 The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
 $R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
 $\chi_{k-1} = 1$ it recovers the classic AMC trigger for full degradation.
@@ -277,7 +600,8 @@ discharged by response-time analysis at design time.
 
 \textbf{Definition (admissible drop set).} $S_x \subseteq \tau^{\mathrm{LO}}$
 is \emph{admissible} at severity $\chi_x$ if, charging every task
-$C_i(\chi_x)$, treating tasks in $S_x$ as absent, and every retained
+$C_i(\chi_x)$, charging each shed task its carry-in per
+\Cref{sec:shed-aware} rather than treating it as absent, and every retained
 LO-criticality task at $C_i^{\mathrm{lo}}$:
 \begin{enumerate}
 \item every HI-criticality task $\tau_i$ has response time $R_i \leq D_i$, and
@@ -296,26 +620,51 @@ never \emph{whether} a level is feasible, only how little must be shed --
 which is what makes the drop set an optimisation rather than a guess, and is
 addressed separately (drop-strategy research, out of scope for this document).
 
-Measured over 50 AMC-rtb-schedulable task sets ($n=12$, $U=0.7$, $CF=2$),
-minimal admissible sets shed markedly less than the classic scheme's blanket
-100\%:
+\textbf{Where the shed must happen.} Carry-in changes the design conclusion,
+not merely the numbers. A task shed at rung $r$ stops releasing at
+$R_i(\chi_r)$ for that rung's \emph{trigger} severity, and by
+\Cref{sec:shed-aware} that bound is infinite for $33\%$ of HI-criticality tasks
+at $\chi = 1$. Where there is no bound the shed task is charged in full, which
+no amount of further shedding can repair -- so a rung that first sheds a task
+deep in the ladder may be uncertifiable outright. Measured over $199$
+non-trivial AMC-rtb-schedulable task sets ($n = 12$, $U = 0.7$, $CF = 2$) with
+trigger severities $(0, 0.5, 1)$:
 
 \begin{table}[h]
 \centering
-\caption{Minimal admissible LO-criticality tasks shed, by severity}
-\begin{tabular}{lc}
+\caption{Shedding progressively against shedding at the shallowest rung}
+\label{tab:shed-early}
+\begin{tabular}{lcc}
 \toprule
-Severity $\chi$ & LO tasks shed \\
+Policy & Task sets uncertifiable & LO tasks shed \\
 \midrule
-$\leq 0.25$ & 0.0\% \\
-0.50 & 10.0\% \\
-0.75 & 33.7\% \\
-1.00 & 56.3\% \\
+Progressive (each task at its own rung) & 93 (47\%) & 71.5\% \\
+Shed-early (one set, all at rung 1)     & 0 \phantom{9}(0\%) & 68.3\% \\
 \midrule
-classic two-level (single trigger) & 100\% \\
+Classic two-level (single trigger)      & 0 \phantom{9}(0\%) & 100\% \\
 \bottomrule
 \end{tabular}
 \end{table}
+
+On the $106$ task sets where both policies are certifiable, shedding early
+sheds strictly less on $12$, the same on $94$, and more on none. It is
+therefore never worse, and it is feasible exactly when the task set passes
+AMC-rtb -- shedding everything at $R_i^{\mathrm{lo}}$ \emph{is}
+\Cref{sec:amc-rtb}'s equation. So it never demands more than the classic test
+and never rescues a set the classic test rejects.
+
+The conclusion is that \textbf{grading belongs in the budgets, not in the drop
+sets}. Progressive shedding buys nothing the analysis can certify and costs
+certifiability on nearly half the population, which is the formal counterpart
+of \Cref{sec:ex-defer}: a shed deferred to a deep rung arrives too late to help
+the task it was meant to protect. The scheme still retains $31.7\%$ of the
+LO-criticality tasks that two-level AMC abandons, with a proof that they meet
+their deadlines.
+
+For comparison, the figures obtained under the earlier assumption that
+shedding takes effect instantaneously -- $0.0\%$ shed at $\chi \leq 0.25$,
+$10.0\%$ at $0.50$, $33.7\%$ at $0.75$ and $56.3\%$ at $1.00$ -- are optimistic
+by the whole carry-in term and are retained only as that comparison.
 
 \textbf{Nesting.} $S_1 \subseteq S_2 \subseteq \dots \subseteq S_{k-1}$ is
 required so that a level transition only ever adds to the drop set, keeping
@@ -325,17 +674,18 @@ strategy that is a pure function of the task set and the remaining candidates
 severity, so each level's set is a prefix of one sequence, and prefixes nest)
 -- it is not an extra assumption on top of the definition above.
 
-\textbf{Scope of this analysis.} The response-time bound above treats a
-shed task's interference as ceasing the instant its level is entered. The
-simulator, like the classic scheme, instead lets a job already released
-continue to completion and abandons only that task's \emph{future} releases --
-so a task shed at the transition instant can still contribute the interference
-of one job already in flight, exactly the quantity the $\min(\cdot,\cdot)$ term
-in \Cref{sec:amc-rtb} bounds for the classic two-level case. The admissibility
-check in this section does not yet include that term for a general drop set;
-doing so is a direct generalisation of \Cref{sec:amc-rtb}'s bound and is
-necessary before this analysis is relied on as a safety guarantee, rather than
-as the sound-in-the-limit design it currently is.
+\textbf{Scope of this analysis.} The carry-in term of \Cref{sec:shed-aware}
+discharges what was previously the largest gap here: the bound now matches the
+simulator's abandonment-on-release policy, under which a job already released
+when a level is entered runs to completion and still interferes. What remains
+unmodelled is the interference profile \emph{before} a rung fires. The bound
+charges every task at the rung's operating severity for the whole busy period,
+including the interval in which the system was still at a shallower rung and a
+lower severity would have sufficed. A windowed two-phase form -- charging
+$C_j(\chi_{x-1})$ before the transition instant and $C_j(\chi_x)$ after, as
+AMC-rtb does for the LO-criticality term -- would tighten this, and is the
+natural next step. It is a source of pessimism, not of unsoundness: every
+figure in \Cref{tab:shed-early} is an upper bound on what must be shed.
 
 \section{Job Execution Model}
 
@@ -354,15 +704,23 @@ HI-criticality behaviour occurs with probability $FP = 1/N$ per job.
 
 \subsection{Execution Budget Enforcement}
 
-During execution, a job is constrained by the budget of the level the system
-is in \emph{when that job is released}:
+A job is constrained by its own worst-case budget, not by the level the system
+happens to be in:
 \[
-\text{Actual execution} = \min(E_i, C_i(\chi_x))
+\text{Actual execution} = \min\!\left(E_i,\; C_i^{\mathrm{hi}}\right).
 \]
-where $\chi_x$ is the severity of the current level $L_x$ ($\chi_1 = 0$ at the
-shallowest degraded level, up to $\chi_{k-1}$ at the deepest). This is a
-budget per level, not per mode: at $k = 2$ it recovers $B_i = C_i^{\mathrm{lo}}$
-in normal mode and $B_i = C_i^{\mathrm{hi}}$ once degraded.
+$C_i(\chi_x)$ is an \emph{analysis} quantity -- what the response-time bound
+charges at severity $\chi_x$ -- and never a run-time throttle. The distinction
+is not cosmetic. Enforcing $C_i(\chi_x)$ at run time would cap a HI-criticality
+job at $C_i(\chi_1) = C_i^{\mathrm{lo}}$ in the shallowest level, making an
+overrun physically impossible; no threshold could then ever be reached and the
+ladder would never leave $L_0$. Implementing that reading confirmed it exactly:
+over a two-million-tick run with $f_p = 0.05$, $1{,}469$ jobs were truncated
+and the system made zero level transitions.
+
+For LO-criticality tasks $C_i^{\mathrm{hi}} = C_i^{\mathrm{lo}}$, so this is a
+real cap on them and a defensive one on HI-criticality tasks, matching the
+two-level model exactly.
 
 \section{Notation Summary}
 
@@ -389,6 +747,9 @@ $R_i(\chi)$ & Severity-indexed response time / run-time trigger threshold (Secti
 $R_{\mathrm{trigger}}$ & $R_i(\chi_{k-1})$, the deepest level's trigger \\
 $\chi_x$ & Severity assigned to level $L_x$ \\
 $S_x$ & Drop set at level $L_x$ (Section~\ref{sec:admissibility}) \\
+$\ell_i$ & Allocated criticality level of task $i$ (Section~\ref{sec:criticality-levels}) \\
+$R_i(\chi, S, s)$ & Shed-aware response time (Section~\ref{sec:shed-aware}) \\
+$x_{\mathrm{LO}}$ & Deepest rung a LO-criticality task may fire (Section~\ref{sec:transition}) \\
 $FP = 1/N$ & HI-behaviour probability per job \\
 $\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
 $L_x$ & Degradation level $x$ ($0 \leq x < k$) \\
