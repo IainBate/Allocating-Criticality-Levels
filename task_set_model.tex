@@ -1,0 +1,285 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{geometry}
+\usepackage{hyperref}
+\usepackage{cleveref}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, urlcolor=blue}
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Ind}{\mathbf{1}}
+\newcommand{\ceil}[1]{\lceil #1 \rceil}
+\newcommand{\floor}[1]{\lfloor #1 \rfloor}
+
+\title{Task Set Model for Multi-Mode Mixed-Criticality Scheduling}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Introduction}
+
+This document presents the formal task set model used in our research on multi-mode mixed-criticality (MC) scheduling. The model extends traditional two-mode Adaptive Mixed-Criticality (AMC) scheduling to support multiple criticality levels, enabling graded degradation rather than binary normal/degraded transitions.
+
+The model builds upon the foundational work presented in:
+
+\begin{itemize}
+    \item AMC-RH: ``Analysis-Runtime Co-design for Adaptive Mixed-Criticality Scheduling'', Bate et al., RTAS 2022
+    \item AMC: ``Compensating Adaptive Mixed-Criticality Scheduling'', Bate et al., RTNS 2022
+    \item DRS: ``Generating Utilization Vectors for the Evaluation of Real-Time Scheduling Algorithms'', Baruah et al., RTSS 2020
+\end{itemize}
+
+\section{Task Model}
+
+\subsection{Basic Task Properties}
+
+A task set $\tau = \{\tau_1, \tau_2, \dots, \tau_n\}$ consists of $n$ independent, sporadically arriving tasks. Each task $\tau_i$ is characterized by:
+
+\begin{table}[h]
+\centering
+\caption{Task Properties}
+\begin{tabular}{lll}
+\toprule
+Symbol & Name & Description \\
+\midrule
+$T_i \in \N^+$ & Period & Minimum inter-arrival time (ticks) \\
+$D_i \in \N^+$ & Deadline & Relative deadline ($D_i = T_i$ for implicit deadlines) \\
+$C_i^{\mathrm{lo}} \in \N^+$ & LO execution budget & Maximum execution in normal mode \\
+$C_i^{\mathrm{hi}} \in \N^+$ & HI execution budget & Maximum execution in degraded mode \\
+$\mathrm{BCET}_i \in \N^+$ & Best-case execution time & $\mathrm{BCET}_i \leq C_i^{\mathrm{lo}}$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Criticality Assignment}
+
+Each task is assigned a criticality level:
+\[
+\kappa_i \in \{\mathrm{HI}, \mathrm{LO}\}
+\]
+
+Let $\tau^{\mathrm{HI}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{HI}\}$ and $\tau^{\mathrm{LO}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{LO}\}$ denote the HI-criticality and LO-criticality subsets, respectively.
+
+\subsection{Utilisation}
+
+The utilisation of task $\tau_i$ under different criticality modes is:
+
+\[
+U_i^{\mathrm{lo}} = \frac{C_i^{\mathrm{lo}}}{T_i}, \quad
+U_i^{\mathrm{hi}} = \begin{cases}
+    \frac{C_i^{\mathrm{hi}}}{T_i} & \text{if } \kappa_i = \mathrm{HI} \\
+    0 & \text{if } \kappa_i = \mathrm{LO}
+\end{cases}
+\]
+
+The total LO-criticality utilisation is:
+\[
+U = \sum_{i=1}^n U_i^{\mathrm{lo}}
+\]
+
+The HI-criticality utilisation factor (CF) relates aggregate utilisations:
+\[
+U^{\mathrm{hi}} = \sum_{\tau_i \in \tau^{\mathrm{HI}}} U_i^{\mathrm{hi}}, \quad
+\text{where } U^{\mathrm{hi}} = CP \cdot CF \cdot U
+\]
+
+Here $CP = |\tau^{\mathrm{HI}}| / n$ is the criticality proportion.
+
+\section{Multi-Level Degradation Model}
+
+\subsection{Degradation Levels}
+
+Instead of binary normal/degraded modes, we define $k \geq 2$ degradation levels:
+
+\begin{table}[h]
+\centering
+\caption{Degradation Level Structure}
+\begin{tabular}{cccc}
+\toprule
+Level & Name & Trigger Condition & LO Task Handling \\
+\midrule
+$L_0$ & Normal & None & All tasks run normally \\
+$L_1$ & Degraded-1 & HI task reaches $R_1$ & Drop some LO tasks (lowest priority) \\
+$L_2$ & Degraded-2 & HI task reaches $R_2$ & Drop more LO tasks \\
+$\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ \\
+$L_{k-1}$ & Fully Degraded & HI task reaches $R_{k-1} \approx R_{\mathrm{trigger}}$ & Drop all LO tasks \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+The trigger points satisfy:
+\[
+0 < R_1 \leq R_2 \leq \dots \leq R_{k-1} = R_{\mathrm{trigger}}
+\]
+
+where $R_{\mathrm{trigger}}$ is the original AMC-RH trigger point (when an HI-criticality task reaches $R_i^{\mathrm{lo}}$ from its busy period start).
+
+\subsection{Mode Transition Protocol}
+
+The system transitions between degradation levels according to:
+
+\begin{align*}
+L_x \to L_{x+1} &\quad \text{when } \exists \tau_i \in \tau^{\mathrm{HI}}: \text{active job reaches } R_i \in L_x \\
+L_x \to L_y &\quad y < x \text{ on exit (direct or cascade, per protocol design)}
+\end{align*}
+
+Each level $L_x$ specifies:
+\begin{itemize}
+    \item A drop policy $\pi_x$ determining which LO tasks are abandoned
+    \item An exit condition $\xi_x$ determining when to leave $L_x$
+\end{itemize}
+
+\section{Job Execution Model}
+
+\subsection{Execution Time Distribution}
+
+Each job's execution time is drawn at release:
+
+\[
+E_i \sim
+\begin{cases}
+\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{\mathrm{lo}}) & \text{if } \kappa_i = \mathrm{LO} \\
+\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{\mathrm{lo}}) & \text{if } \kappa_i = \mathrm{HI}, \text{normal mode} \\
+\mathrm{Uniform}(C_i^{\mathrm{lo}}, C_i^{\mathrm{hi}}) & \text{if } \kappa_i = \mathrm{HI}, \text{HI behaviour}
+\end{cases}
+\]
+
+HI-criticality behaviour occurs with probability $FP = 1/N$ per job.
+
+\subsection{Execution Budget Enforcement}
+
+During execution, jobs are constrained by their budgets:
+
+\[
+\text{Actual execution} = \min(E_i, B_i)
+\]
+where $B_i = C_i^{\mathrm{lo}}$ in normal mode and $B_i = C_i^{\mathrm{hi}}$ in degraded mode for HI tasks.
+
+\section{Schedulability Analysis}
+
+\subsection{Response Time Analysis (RTA)}
+
+For fixed-priority preemptive scheduling, the response time of task $\tau_i$ is computed via fixed-point iteration:
+
+\textbf{Normal Mode Response Time:}
+\[
+R_i^{\mathrm{lo}} = C_i^{\mathrm{lo}} + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{\mathrm{lo}}
+\]
+
+where $\mathrm{hp}(i)$ is the set of higher-priority tasks.
+
+\textbf{HI-Criticality Response Time:}
+\[
+R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}} + \sum_{\tau_j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{\mathrm{hi}}
++ \sum_{\tau_k \in \mathrm{hp}_{\mathrm{LO}}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil C_k^{\mathrm{lo}}
+\]
+
+where $\mathrm{hp}_{\mathrm{HI}}(i)$ and $\mathrm{hp}_{\mathrm{LO}}(i)$ are higher-priority HI-criticality and LO-criticality tasks, respectively.
+
+\subsection{AMC-rtb Schedulability Test}
+
+A task set is AMC-rtb schedulable if:
+\[
+R_i^{\mathrm{hi}} \leq D_i \quad \forall \tau_i \in \tau^{\mathrm{HI}}
+\]
+and
+\[
+R_i^{\mathrm{lo}} \leq D_i \quad \forall \tau_i \in \tau
+\]
+
+\section{Metrics}
+
+\subsection{Degradation Metrics}
+
+\begin{align*}
+\textbf{NiD} &\quad \text{Number of times degraded mode is entered} \\
+\textbf{TiD} &\quad \text{Fraction of time spent in degraded mode} \\
+\textbf{JNE} &\quad \text{Jobs Not Executed (LO jobs dropped)} \\
+\textbf{LDM} &\quad \text{Late Degraded Mode (LO jobs that miss deadline in degraded mode)} \\
+\textbf{HDM} &\quad \text{High Degradation Mode (HI jobs missing deadline)}
+\end{align*}
+
+\subsection{Objective Function}
+
+For $k$-level scheduling, we define the objective function:
+
+\[
+\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
+\]
+
+where $\mathrm{WastedCPU}$ is the CPU cycles spent on abandoned LO work, and $\alpha, \beta, \gamma$ are weighting coefficients.
+
+\section{Task Set Generation}
+
+Following DRS (RTSS 2020), utilisation vectors are generated via the Dirichlet-Rescale algorithm:
+
+\subsection{DRS Algorithm}
+
+Given $n$ tasks and target utilisation $U$, the DRS algorithm produces $\mathbf{u} = (u_1, \dots, u_n)$ such that:
+\[
+\sum_{i=1}^n u_i = U, \quad 0 \leq u_i \leq 1
+\]
+
+The algorithm operates via:
+\begin{enumerate}
+    \item Draw $\mathbf{x} \sim \mathrm{Dirichlet}(1, \dots, 1)$ (uniform on simplex)
+    \item Scale: $u_i = U \cdot x_i$
+    \item Apply constraints via rescaling to standard simplex
+\end{enumerate}
+
+\subsection{Task Parameter Generation}
+
+For each task $\tau_i$:
+\begin{align*}
+T_i &\sim \mathrm{LogUniform}(\log(100), \log(10000)) \\
+D_i &= T_i \\
+C_i^{\mathrm{lo}} &= \round(u_i \cdot T_i) \\
+\mathrm{BCET}_i &\sim \mathrm{Uniform}(0.8 \cdot C_i^{\mathrm{lo}}, C_i^{\mathrm{lo}}) \\
+C_i^{\mathrm{hi}} &= \min(\round(CF \cdot C_i^{\mathrm{lo}}), T_i)
+\end{align*}
+
+\section{Notation Summary}
+
+\begin{table}[h]
+\centering
+\caption{Notation Reference}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$\tau$ & Task set \\
+$n$ & Number of tasks \\
+$k$ & Number of degradation levels \\
+$\kappa_i$ & Criticality of task $i$ ($\mathrm{HI}$ or $\mathrm{LO}$) \\
+$T_i, D_i$ & Period and deadline of task $i$ \\
+$C_i^{\mathrm{lo}}, C_i^{\mathrm{hi}}$ & Execution budgets in LO/HI modes \\
+$\mathrm{BCET}_i$ & Best-case execution time \\
+$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes \\
+$R_i^{\mathrm{lo}}, R_i^{\mathrm{hi}}$ & Response times in LO/HI modes \\
+$FP = 1/N$ & HI-behaviour probability per job \\
+$\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
+$L_x$ & Degradation level $x$ ($0 \leq x < k$) \\
+$R_x$ & Trigger point for level $L_x$ \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{References}
+
+\begin{enumerate}
+    \item Bate, G. et al. ``Analysis-Runtime Co-design for Adaptive Mixed-Criticality Scheduling.'' RTAS 2022.
+    \item Bate, G. et al. ``Compensating Adaptive Mixed-Criticality Scheduling.'' RTNS 2022.
+    \item Baruah, S. et al. ``Generating Utilization Vectors for the Evaluation of Real-Time Scheduling Algorithms.'' RTSS 2020.
+\end{enumerate}
+
+\end{document}
