@@ -121,20 +121,72 @@ $\square$
 
 ## Theorem 3: Schedulability Preservation
 
-**Statement**: If a task set is schedulable under AMC-rtb with $k=2$ (two modes), it remains schedulable for any $k > 2$ with $R_x \leq R_{\mathrm{trigger}}$.
+The previous statement of this theorem argued that "no LO task experiences
+*more* interference than in the two-level case". That is **false**: a
+LO-criticality task retained at an intermediate level runs alongside
+HI-criticality jobs charged up to $C^{\mathrm{hi}}$, whereas two-level AMC would
+have abandoned it. Retaining work necessarily means absorbing interference that
+abandoning it would have avoided.
 
-*Proof*: 
+The repair is not to weaken the claim but to *impose it*. Interference is not a
+free variable: it is determined by the drop set, and the drop set is ours to
+choose. So the property becomes an obligation on $S_x$, discharged by
+response-time analysis at design time.
 
-1. For HI-criticality tasks, Theorem 1 establishes deadline met.
+**Definition (admissible drop set).** $S_x \subseteq \mathrm{LO}$ is *admissible*
+at severity $\chi_x$ if, charging every task $C_i(\chi_x)$, treating tasks in
+$S_x$ as absent and retained LO-criticality tasks at $C^{\mathrm{lo}}$:
 
-2. For LO-criticality tasks:
-   - In normal mode ($L_0$), they execute as in single-criticality FPPS
-   - In intermediate degraded levels, some subset runs with reduced interference (fewer active tasks)
-   - In fully-degraded level, dropped jobs count toward JNE but don't miss deadlines
+1. every HI-criticality task $\tau_i$ has $R_i \leq D_i$, and
+2. every retained LO-criticality task $\tau_j \notin S_x$ has $R_j \leq D_j$.
 
-3. Since no LO task experiences *more* interference than in the two-level case, all LO deadlines are met when jobs execute.
+**Statement**: If every level's drop set is admissible, then at every level no
+HI-criticality job and no *retained* LO-criticality job misses its deadline.
 
-$\square$
+*Proof*: Both clauses are exactly the response-time conditions of the standard
+fixed-priority test applied at level $L_x$'s budgets and active task set. Level
+entry only ever removes tasks (Lemma 1), so the interference each retained task
+faces at run time is bounded by the interference the analysis charged it.
+Clause 1 gives the HI-criticality obligation; clause 2 gives the retained
+LO-criticality obligation. A task in $S_x$ has no deadline obligation: its jobs
+are abandoned on release and count toward JNE, not LDM. $\square$
+
+**Corollary 3.1 (no LDM).** LDM $= 0$ by construction, so there is no
+JNE-against-LDM trade-off to measure. The scheme trades JNE against *severity
+coverage*, not against missed deadlines.
+
+**Existence.** An admissible set always exists whenever the task set passes
+AMC-rtb, since $S_x = \mathrm{LO}$ reduces clause 1 to the AMC-rtb HI-mode test
+and vacates clause 2. So the question is never *whether* a level is feasible,
+only how little must be shed — which is what makes the drop set an optimisation
+rather than a guess.
+
+### Measured cost
+
+Minimal admissible sets over 50 AMC-rtb-schedulable, non-trivial task sets
+($n=12$, $U=0.7$, $CF=2$), computed by `amc_tasksim.scheduling.drop_sets`:
+
+| Severity $\chi$ | LO tasks that must be shed |
+|---|---|
+| $\leq 0.25$ | **0.0%** |
+| 0.50 | 10.0% |
+| 0.75 | 33.7% |
+| 1.00 | **56.3%** |
+
+Two-level AMC abandons every new LO-criticality release at its single trigger,
+i.e. the 100% row. Mild overruns need no degradation at all, and even at full
+$C^{\mathrm{hi}}$ behaviour the scheme retains 43.7% of LO-criticality tasks
+that AMC-RH would have abandoned — with a proof that they still meet their
+deadlines. **This is the quantitative case for grading the response.**
+
+> **A note on a stronger alternative.** One could instead require that no
+> retained LO task sees more interference than in *normal mode*
+> ($R_j \leq R_j(\mathrm{LO})$ rather than $R_j \leq D_j$). That is achievable
+> and would make the original wording true, but it is far stricter than
+> necessary: it forces shedding 80–88% of LO-criticality tasks, against 0–56%
+> for the deadline criterion. Deadline preservation is the property that
+> matters, and demanding interference preservation discards most of the benefit
+> for no additional safety.
 
 ## Practical Implications
 
