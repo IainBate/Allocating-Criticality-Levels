@@ -218,6 +218,7 @@ def generate_taskset(
             "N": N,
             "hi_mode": hi_mode,
             "period_range": period_range,
+            "period_mode": period_mode,
             "bcet_fraction_range": bcet_fraction_range,
         },
         individually_infeasible_count=len(infeasible),
