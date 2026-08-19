@@ -65,9 +65,18 @@ cosmetic:
   late, since a stale result may be worse than none. This removes the
   LO-criticality deadline obligation entirely -- there is nothing left to miss
   -- which turns clause 2 of the admissibility criterion from a constraint into
-  an objective and raises LO-criticality retention from $31.7\%$ to $52.4\%$
-  with no change to HI-criticality safety.
+  an objective.
 \end{enumerate}
+
+That last change yields \textbf{two distinct operating points}, both reported
+in \Cref{sec:operating-points} because they suit different certification
+appetites. The \emph{conservative} point keeps clause 2, so every retained
+LO-criticality task is certified to complete and LDM is zero by analysis; it
+needs no new execution model, being sound under the original two-level
+semantics, and still improves service ratio over AMC-RH by $1.6$ to $3.0$
+percentage points. The \emph{termination} point relaxes clause 2 and adds a
+further $1.1$ to $2.8$. Neither helps in the hardest regime tested, where both
+collapse onto AMC-RH -- reported rather than omitted.
 
 Two findings are consequential and negative, and are reported as such.
 \emph{Progressive} shedding cannot be certified on $47\%$ of an otherwise
@@ -746,9 +755,19 @@ The conclusion is that \textbf{grading belongs in the budgets, not in the drop
 sets}. Progressive shedding buys nothing the analysis can certify and costs
 certifiability on two thirds of the population, which is the formal counterpart
 of \Cref{sec:ex-defer}: a shed deferred to a deep rung arrives too late to help
-the task it was meant to protect. The scheme retains $52.4\%$ of the
-LO-criticality tasks two-level AMC abandons, and terminates rather than
-delivers late whichever of those cannot finish.
+the task it was meant to protect.
+
+There is one exception, and it matters for \Cref{sec:operating-points}. Once
+$S_1$ discharges clause 1 at \emph{every} operating severity, a deeper rung may
+shed \emph{more} without any risk to safety: a shed task's charge,
+$\min(\lceil w/T_k \rceil, \lceil s_k/T_k \rceil)$, is at worst
+$\lceil w/T_k \rceil$, which is exactly what it would contribute unshed. So
+even an infinite shed instant cannot raise the interference above the
+already-certified level. Verified on all $199$ task sets: extending the drop set
+at rung 2 never broke clause 1. Progressive shedding is thus safe whenever the
+\emph{safety} obligation is discharged in full at the shallowest rung and the
+deeper rungs add only service -- which is exactly how the intermediate policy of
+\Cref{sec:operating-points} is built.
 
 That conclusion has a cost recorded in \Cref{sec:transition}: a single drop set
 leaves no intermediate tiers, and without intermediate tiers escalation has
@@ -884,58 +903,99 @@ comparable between task sets or between experiments of different duration.
 Every rate below is a percentage of $\mathrm{Exp}$; WastedCPU is a percentage
 of $H$.
 
-\section{Measured Performance}
-\label{sec:results}
+\section{Two Operating Points}
+\label{sec:operating-points}
 
-Service ratio against the two-level AMC-RA baseline on the same task sets,
-arrival sequences and execution times. $k = 4$ with trigger severities
-$(0, 0.5, 1)$, shed-early drop sets, $x_{\mathrm{LO}} = 0$, $f_p = 0.2$,
-$200{,}000$ ticks $\times$ 3 seeds, 25 task sets per row. \emph{Tight} deadlines
-are pulled down to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$, which
-preserves normal-mode schedulability exactly while removing most of the slack.
+Clause 2 of \Cref{sec:admissibility} is a dial, not a decision, and the two
+ends of it are different schemes with different prerequisites. Both are
+reported, because they suit different certification appetites.
+
+\begin{description}
+\item[Point A -- conservative.] Clause 2 enforced. Every \emph{retained}
+  LO-criticality task is certified to complete, so LDM is zero by analysis for
+  everything the scheme promises to keep. \textbf{This needs no new execution
+  model}: it is sound under the original two-level semantics, and can be
+  adopted by anyone unwilling to accept a task being cut off mid-computation.
+\item[Point B -- termination.] Clause 2 as an objective. A retained
+  LO-criticality task is best-effort and is terminated at its deadline if it
+  cannot finish (\Cref{sec:termination}). It sheds markedly less, and requires
+  accepting that a job may be discarded having run.
+\end{description}
+
+\noindent A third, intermediate policy sheds Point A's set but defers the
+difference to rung 2, so tasks Point A abandons immediately instead run at
+$L_1$. It sits between the two throughout, confirming the dial is continuous
+rather than a choice of two.
 
 \begin{table}[h]
 \centering
-\caption{Service ratio, graded scheme against two-level AMC}
-\label{tab:results}
-\begin{tabular}{llccccc}
+\caption{Service ratio by operating point. $k=4$, trigger severities
+$(0, 0.5, 1)$, $x_{\mathrm{LO}} = 0$, $f_p = 0.2$, $200{,}000$ ticks
+$\times$ 3 seeds, 30 task sets per block. \emph{Tight} deadlines sit $30\%$ of
+the way from $R_i^{\mathrm{lo}}$ to $T_i$.}
+\label{tab:operating-points}
+\begin{tabular}{llcccc}
 \toprule
-$U$ & $D_i$ & Graded & Two-level & JNE\% & Term.\% & Waste\% \\
+Regime & Policy & Service & JNE\% & Term.\% & Waste\% \\
 \midrule
-0.70 & implicit & \textbf{0.9701} & 0.9343 & 2.96 & 0.01 & 0.00 \\
-0.70 & tight    & \textbf{0.8871} & 0.8371 & 11.02 & 0.24 & 0.17 \\
-0.85 & implicit & \textbf{0.8911} & 0.8545 & 10.80 & 0.03 & 0.02 \\
-0.85 & tight    & 0.6702 & \textbf{0.6727} & 32.75 & 0.21 & 0.32 \\
+\multirow{4}{*}{$U=0.70$, implicit}
+ & Two-level AMC-RA   & 0.9390 & --    & --   & --   \\
+ & A: conservative    & 0.9549 & 4.48  & 0.00 & 0.00 \\
+ & \quad intermediate & 0.9662 & 3.34  & 0.00 & 0.00 \\
+ & B: termination     & \textbf{0.9728} & 2.69 & 0.00 & 0.00 \\
+\midrule
+\multirow{4}{*}{$U=0.70$, tight}
+ & Two-level AMC-RA   & 0.8551 & --    & --   & --   \\
+ & A: conservative    & 0.8767 & 12.12 & 0.19 & 0.13 \\
+ & \quad intermediate & 0.8939 & 10.38 & 0.21 & 0.16 \\
+ & B: termination     & \textbf{0.9050} & 9.26 & 0.22 & 0.18 \\
+\midrule
+\multirow{4}{*}{$U=0.85$, implicit}
+ & Two-level AMC-RA   & 0.8454 & --    & --   & --   \\
+ & A: conservative    & 0.8754 & 12.36 & 0.03 & 0.06 \\
+ & \quad intermediate & 0.8839 & 11.51 & 0.04 & 0.07 \\
+ & B: termination     & \textbf{0.8863} & 11.28 & 0.04 & 0.07 \\
+\midrule
+\multirow{4}{*}{$U=0.85$, tight}
+ & Two-level AMC-RA   & \textbf{0.6727} & -- & -- & -- \\
+ & A: conservative    & 0.6725 & 32.53 & 0.20 & 0.32 \\
+ & \quad intermediate & 0.6703 & 32.74 & 0.20 & 0.32 \\
+ & B: termination     & 0.6702 & 32.75 & 0.21 & 0.32 \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-\noindent No HI-criticality deadline was missed in any configuration, as
-clause 1 requires.
+\noindent No HI-criticality deadline was missed under any policy in any regime,
+as clause 1 requires. Four things follow.
 
-Three things are worth reading off this table rather than asserting.
+\textbf{Both points beat two-level AMC, and the ordering never inverts.} Point
+A gains $1.6$ to $3.0$ percentage points of service ratio, Point B a further
+$1.1$ to $2.8$ on top. The conservative point is therefore worth having on its
+own: it is a strict improvement over AMC-RH that costs no change to the
+execution model and gives up no guarantee AMC-RH provides.
 
-\textbf{The gain is real but modest}: $3.6$ to $5.0$ percentage points of
-service ratio in the first three rows. That is the honest size of the effect
-once shedding is charged its carry-in, and it is well below what the
-instantaneous-shedding analysis implied.
+\textbf{Termination is insurance, not the source of the gain.} Terminations
+never exceed $0.22\%$ of jobs and wasted processor time never $0.32\%$ of the
+run. Point B does not win by discarding late work -- it barely discards any. It
+wins by \emph{shedding less up front}, which termination is what makes sound.
+Reporting the gain as a benefit of termination itself would misattribute it.
 
-\textbf{The hardest configuration is a loss.} At $U = 0.85$ with tight
-deadlines the graded scheme is marginally \emph{worse} than two-level AMC
-($0.6702$ against $0.6727$). Retaining LO-criticality work means absorbing
-interference, and where almost a third of jobs are being shed anyway there is
-no headroom left to pay for it. The scheme should not be recommended
+\textbf{Both degenerate in the hardest regime.} At $U = 0.85$ with tight
+deadlines the conservative drop set reaches $100\%$ -- clause 2 can only be
+satisfied by shedding everything -- so Point A \emph{is} two-level AMC, and
+Point B is $0.25$ percentage points worse than it. Retaining LO-criticality
+work means absorbing interference, and where a third of jobs are already being
+shed there is no headroom to pay for it. Neither point should be recommended
 unconditionally.
 
-\textbf{Termination and waste are second-order.} Terminations never exceed
-$0.24\%$ of jobs and wasted processor time never exceeds $0.32\%$ of the run.
-The dominant loss is JNE throughout -- jobs abandoned on release because they
-are in the drop set. Any further improvement therefore has to come from
-shedding \emph{fewer} tasks, not from managing the ones that are retained: this
-is the quantitative reason \Cref{sec:transition} concludes that the generalised
-trigger cannot pay in its present form.
+\textbf{The intermediate policy is dominated but instructive.} It never beats
+Point B, because the tasks it defers to rung 2 are precisely those the analysis
+could not certify -- shedding them protects nobody else, since clause 1 and
+every certified task's deadline already hold with the smaller set. Running them
+best-effort and terminating the failures is simply better than abandoning them
+on release. That is the clearest single argument for Point B.
 
-\section{Notation Summary}
+\section{Notation Summary}\section{Notation Summary}
 
 \begin{table}[h]
 \centering

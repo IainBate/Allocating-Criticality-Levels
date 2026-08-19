@@ -150,6 +150,7 @@ def build_ladder(
     drop_policy: str = "admissible",
     charge_carry_in: bool = False,
     x_lo: int = 0,
+    require_lo_deadlines: bool = False,
 ) -> Optional[SeverityLadder]:
     """Build a ladder from trigger severities.
 
@@ -174,6 +175,15 @@ def build_ladder(
             was entered. Only meaningful with ``drop_policy="admissible"``;
             ``"shed_early"`` always charges it.
         x_lo: Deepest rung a retained LO-criticality task may fire.
+        require_lo_deadlines: Selects between the scheme's two operating points.
+            False (default) is the *termination* point: retained LO-criticality
+            tasks are best-effort and are terminated at their deadline if they
+            cannot finish. True is the *conservative* point: every retained
+            LO-criticality task is certified to complete, so LDM is zero by
+            analysis and no new execution model is needed -- it is sound under
+            the original two-level semantics. The conservative point sheds more
+            and delivers less; both beat two-level AMC. See the paper's
+            "Two Operating Points".
 
     Returns:
         A :class:`SeverityLadder`, or ``None`` if some level is infeasible
@@ -209,7 +219,8 @@ def build_ladder(
         # analysis endorses: progressive shedding cannot be certified at deep
         # rungs because R_i(chi) is infinite there for a third of HI tasks, so
         # no carry-in bound exists. See drop_sets.drop_set_shed_early.
-        early = drop_set_shed_early(taskset, operating, severities[0], ordering)
+        early = drop_set_shed_early(taskset, operating, severities[0], ordering,
+                                    require_lo_deadlines=require_lo_deadlines)
         if early is None:
             return None
         drop_sets = [set(early) for _ in severities]

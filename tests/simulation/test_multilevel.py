@@ -421,3 +421,25 @@ def test_release_counts_are_rng_independent(tasksets):
 def test_k_property_matches_severities_length(tasksets):
     ladder = build_ladder(tasksets[0], [0.0, 0.2, 0.5, 0.9])
     assert ladder.k == 5
+
+
+def test_the_two_operating_points_differ_in_the_expected_direction():
+    """Conservative sheds at least as much as termination, and never less.
+
+    The conservative point certifies every retained LO task's deadline; the
+    termination point only certifies HI deadlines and terminates the rest if
+    they fall behind. The extra obligation can only force more shedding.
+    """
+    strictly_more = 0
+    for ts in population(8):
+        conservative = build_ladder(ts, [0.0, 0.5, 1.0], drop_policy="shed_early",
+                                    require_lo_deadlines=True)
+        termination = build_ladder(ts, [0.0, 0.5, 1.0], drop_policy="shed_early",
+                                   require_lo_deadlines=False)
+        assert termination is not None, "the safety-only point must always exist"
+        if conservative is None:
+            continue
+        assert termination.drop_sets[0] <= conservative.drop_sets[0]
+        if termination.drop_sets[0] < conservative.drop_sets[0]:
+            strictly_more += 1
+    assert strictly_more, "the two points never differed; the test proves nothing"

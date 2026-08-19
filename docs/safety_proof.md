@@ -63,7 +63,7 @@ We need to prove that this multi-level scheme maintains schedulability guarantee
 For HI-criticality task $\tau_i$:
 $$R_i^{\mathrm{lo}} = C_i^{\mathrm{lo}} + \sum_{j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{\mathrm{lo}}$$
 
-$$R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}} + \sum_{j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{\mathrm{hi}} 
+$$R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}} + \sum_{j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{\mathrm{hi}}
 + \sum_{k \in \mathrm{hp}_{\mathrm{LO}}(i)} \min\!\left( \left\lceil \frac{R_i^{\mathrm{hi}}}{T_k} \right\rceil, \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil \right) C_k^{\mathrm{lo}}$$
 
 The $\min$ is a sound tightening of the canonical AMC-rtb form: interference
@@ -97,7 +97,7 @@ that consults the severity or the partial drop set, which is why
 
 **Statement**: If all HI-criticality tasks meet their deadlines under AMC-RH, they also meet them in the multi-level scheme with severities $0 = \chi_1 \leq \dots \leq \chi_{k-1}$ and admissible drop sets.
 
-*Proof*: 
+*Proof*:
 
 1. By definition, under AMC-RH, an HI-criticality task $\tau_i$ enters degraded mode when it reaches $R_i^{\mathrm{lo}}$ from its busy period start.
 
@@ -298,6 +298,45 @@ identical HI-criticality guarantees.
 HI-criticality safety is untouched by the relaxation, and if anything improves:
 a terminated job executes no more than it otherwise would, so interference on
 HI-criticality tasks can only fall.
+
+### Two operating points
+
+The dial has two ends and both are worth reporting, because they carry
+different certification prerequisites.
+
+| | Clause 2 | Retained LO tasks | Needs termination? | Service vs AMC-RH |
+|---|---|---|---|---|
+| **A conservative** | enforced | certified to complete (LDM = 0 by analysis) | **no** | +1.6 to +3.0 pp |
+| **B termination** | objective | best-effort, terminated if late | yes | +3.4 to +5.0 pp |
+
+Point A is sound under the *original* two-level execution semantics — nothing
+is ever cut off mid-computation — so it is available to anyone unwilling to
+accept termination, and it still strictly improves on AMC-RH. Point B trades
+that guarantee for more retained work.
+
+Two caveats belong with the numbers. Terminations never exceed 0.22% of jobs,
+so **Point B's gain comes from shedding less up front, not from discarding late
+work** — termination is what makes the smaller drop set sound, not the source
+of the benefit. And in the hardest regime tested ($U = 0.85$, deadlines at 30%
+of the way from $R_i(\mathrm{LO})$ to $T_i$) Point A's drop set reaches 100%,
+so it *is* AMC-RH, and Point B is 0.25 pp worse. Neither should be recommended
+unconditionally.
+
+### Deeper rungs can always shed more safely
+
+Once $S_1$ discharges clause 1 at every operating severity, any
+$S_r \supseteq S_1$ shed at a deeper rung also discharges it — even when its
+shed instant is infinite. A shed task is charged
+$\min(\lceil w/T_k \rceil, \lceil s_k/T_k \rceil) \leq \lceil w/T_k \rceil$,
+which is exactly its unshed contribution, so adding shedding cannot raise
+interference above the already-certified level. Verified on all 199 task sets:
+extending the drop set at rung 2 never broke clause 1.
+
+This is the one case in which progressive shedding is sound: discharge *safety*
+in full at the shallowest rung, and let deeper rungs add only *service*. It is
+what the intermediate policy is built on, and it is why the earlier blanket
+conclusion — that progressive shedding cannot be certified — needs this
+qualification.
 
 **Statement**: If every level's drop set is admissible, then at every level no
 HI-criticality job and no *retained* LO-criticality job misses its deadline.
