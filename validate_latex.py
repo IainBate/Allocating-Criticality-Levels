@@ -1,222 +1,179 @@
 #!/usr/bin/env python3
-r"""
-Validate LaTeX files for common errors before committing/pushing to Overleaf.
+r"""Validate LaTeX files by actually compiling them.
 
-This script checks:
-1. Balanced braces, brackets, and parentheses
-2. Proper use of math mode delimiters ($, $$, \[, \])
-3. Matching begin/end environments
-4. Missing or extra \end{document}
-5. Common macro usage issues
+The previous version of this script only did regex checks (balanced braces,
+matched begin/end, presence of \bibliography if \cite is used). Those catch
+some typos but cannot catch what actually breaks a build: an undefined macro,
+a missing \label for a \ref, a citation key absent from every .bib file, a
+package error. All four of those were live bugs in this project's two papers
+-- \round and \E used without definition, \ref{sec:parameters} with no
+matching \label, and \bibliography pointing at a references.bib that did not
+exist -- and every one of them passed the old regex checks silently.
 
-Usage: python validate_latex.py [file_or_directory...]
+This version compiles each file with tectonic (a self-contained LaTeX engine:
+`brew install tectonic`, no TeX Live required) and parses its log for the
+same class of error LaTeX itself would report, so "passes validation" means
+"produces a PDF with no undefined citations, references, or macros" rather
+than "has matching braces".
+
+Usage:
+    python validate_latex.py [file_or_directory...]
+
+Exit status 0 if every file compiles cleanly, 1 otherwise.
 """
 
-import sys
-import os
+from __future__ import annotations
+
 import re
+import shutil
+import subprocess
+import sys
+import tempfile
 from pathlib import Path
 
+# Patterns that indicate a real problem, matched against tectonic's combined
+# stdout+stderr. These are LaTeX's own diagnostic wording, not something this
+# script invents.
+_ERROR_PATTERNS = [
+    (re.compile(r"^error:", re.MULTILINE), "compile error"),
+    (re.compile(r"Undefined control sequence"), "undefined macro"),
+    (re.compile(r"Citation `[^']*' .* undefined"), "undefined citation"),
+    (re.compile(r"Reference `[^']*' .* undefined"), "undefined cross-reference"),
+    (re.compile(r"! LaTeX Error"), "LaTeX error"),
+    (re.compile(r"! Package \S+ Error"), "package error"),
+    (re.compile(r"I couldn't open (style|database) file"), "missing bib/style file"),
+    (re.compile(r"I found no \\\\?bibstyle command"), "missing bibliographystyle"),
+]
 
-def read_file(filepath):
-    """Read file content, return None if unreadable."""
-    try:
-        with open(filepath, 'r', encoding='utf-8') as f:
-            return f.read()
-    except Exception as e:
-        print(f"Warning: Could not read {filepath}: {e}")
-        return None
+# Cosmetic warnings that are not worth failing a commit over.
+_IGNORE_PATTERNS = [
+    re.compile(r"`h' float specifier changed to `ht'"),
+    re.compile(r"Rerun to get "),
+]
 
 
-def check_balanced_braces(content):
-    """Check that braces {} are balanced."""
-    errors = []
-    count = 0
+def find_tectonic() -> str | None:
+    return shutil.which("tectonic")
+
+
+def compile_check(tex_path: Path) -> list[str]:
+    """Compile ``tex_path`` and return a list of problems found in the log.
+
+    Runs in a scratch directory copying the whole parent directory of
+    ``tex_path``, so sibling files it \\input's or \\bibliography's against
+    (macros.tex, project_bib.bib, references.bib) are present -- compiling a
+    single file in isolation would itself produce spurious "undefined" errors
+    that have nothing to do with the file being checked.
+    """
+    tectonic = find_tectonic()
+    if tectonic is None:
+        return [
+            "tectonic is not installed, so this is a syntax-only check "
+            "(braces/environments), not a real compile. Install it with "
+            "`brew install tectonic` for a check that catches undefined "
+            "macros, missing citations, and broken cross-references."
+        ] + _syntax_only_check(tex_path)
+
+    source_dir = tex_path.parent
+    with tempfile.TemporaryDirectory(prefix="texcheck_") as scratch:
+        scratch_dir = Path(scratch)
+        for item in source_dir.iterdir():
+            if item.name.startswith(".") or item.suffix in {
+                ".pdf", ".aux", ".log", ".bbl", ".blg", ".out",
+            }:
+                continue
+            dest = scratch_dir / item.name
+            if item.is_file():
+                shutil.copy2(item, dest)
+
+        proc = subprocess.run(
+            [tectonic, "--keep-logs", tex_path.name],
+            cwd=scratch_dir,
+            capture_output=True,
+            text=True,
+            timeout=180,
+        )
+        combined = proc.stdout + "\n" + proc.stderr
+        log_path = scratch_dir / tex_path.with_suffix(".log").name
+        if log_path.exists():
+            combined += "\n" + log_path.read_text(errors="replace")
+
+        problems: list[str] = []
+        for line in combined.splitlines():
+            if any(p.search(line) for p in _IGNORE_PATTERNS):
+                continue
+            for pattern, label in _ERROR_PATTERNS:
+                if pattern.search(line):
+                    problems.append(f"{label}: {line.strip()}")
+                    break
+
+        if proc.returncode != 0 and not problems:
+            problems.append(
+                f"tectonic exited {proc.returncode} with no matched pattern; "
+                f"tail of output:\n" + "\n".join(combined.splitlines()[-15:])
+            )
+        return problems
+
+
+def _syntax_only_check(tex_path: Path) -> list[str]:
+    """Fallback when tectonic is unavailable: the old regex-based checks."""
+    content = tex_path.read_text(errors="replace")
+    errors: list[str] = []
+
+    depth = 0
     for i, char in enumerate(content, 1):
-        if char == '{':
-            count += 1
-        elif char == '}':
-            count -= 1
-            if count < 0:
-                errors.append(f"Line {i}: Unmatched closing brace '}}'")
-    if count > 0:
-        errors.append(f"Missing {count} closing brace(s)")
-    return errors
+        if char == "{":
+            depth += 1
+        elif char == "}":
+            depth -= 1
+            if depth < 0:
+                errors.append(f"line {i}: unmatched closing brace")
+                depth = 0
+    if depth > 0:
+        errors.append(f"missing {depth} closing brace(s)")
 
-
-def check_balanced_brackets(content):
-    """Check that square brackets [] are balanced."""
-    errors = []
-    count = 0
-    for i, char in enumerate(content, 1):
-        if char == '[':
-            count += 1
-        elif char == ']':
-            count -= 1
-            if count < 0:
-                errors.append(f"Line {i}: Unmatched closing bracket ']'")
-    if count > 0:
-        errors.append(f"Missing {count} closing bracket(s)")
-    return errors
-
-
-def check_math_mode_delimiters(content):
-    """Check for balanced math mode delimiters."""
-    errors = []
-
-    # Remove comments first
-    lines = content.split('\n')
-    clean_lines = []
-    for line in lines:
-        # Remove % comments (but not inside strings)
-        comment_idx = line.find('%')
-        if comment_idx >= 0:
-            line = line[:comment_idx]
-        clean_lines.append(line)
-    clean_content = '\n'.join(clean_lines)
-
-    # Count $ delimiters
-    dollar_count = len(re.findall(r'\$', clean_content))
-    if dollar_count % 2 != 0:
-        errors.append("Unbalanced $ delimiters (odd number found)")
-
-    # Check for $$ without matching $ in between (simple check)
-    return errors
-
-
-def check_begin_end_environments(content):
-    """Check that begin/end environments are properly matched."""
-    errors = []
-
-    begins = re.findall(r'\\begin\s*\{([^}]+)\}', content)
-    ends = re.findall(r'\\end\s*\{([^}]+)\}', content)
-
-    # Sort for consistent output
-    begins_sorted = sorted(begins)
-    ends_sorted = sorted(ends)
-
-    if begins_sorted != ends_sorted:
-        missing_in_ends = [b for b in begins if b not in ends]
-        missing_in_begins = [e for e in ends if e not in begins]
-
-        if missing_in_ends:
-            errors.append(f"Missing \\end{{{', '.join(missing_in_ends)}}}")
-        if missing_in_begins:
-            errors.append(f"Extra \\begin{{{', '.join(missing_in_begins)}}} without matching \\end")
+    begins = re.findall(r"\\begin\s*\{([^}]+)\}", content)
+    ends = re.findall(r"\\end\s*\{([^}]+)\}", content)
+    if sorted(begins) != sorted(ends):
+        errors.append("mismatched \\begin/\\end environments")
 
     return errors
 
 
-def check_document_environment(content):
-    r"""Check for proper \documentclass, \begin{document}, \end{document}."""
-    errors = []
-
-    has_documentclass = bool(re.search(r'\\documentclass\s*[{[]', content))
-    has_begin_document = bool(re.search(r'\\begin\s*\{document\}', content))
-    has_end_document = bool(re.search(r'\\end\s*\{document\}', content))
-
-    if not has_documentclass:
-        errors.append("Missing \\documentclass declaration")
-    if not has_begin_document:
-        errors.append("Missing \\begin{document}")
-    if not has_end_document:
-        errors.append("Missing \\end{document}")
-
-    return errors
-
-
-def check_bibliography_commands(content, filename):
-    """Check for proper bibliography setup."""
-    errors = []
-
-    has_bibstyle = bool(re.search(r'\\bibliographystyle', content))
-    has_bibliography = bool(re.search(r'\\bibliography\s*\{[^}]+\}', content))
-
-    # If using \cite, should have bibliography
-    cites = re.findall(r'\\cite\s*[\{\[]?', content)
-    if cites and not (has_bibstyle or has_bibliography):
-        errors.append(f"Found \\cite commands but no \\bibliography or biblatex setup")
-
-    return errors
-
-
-def check_common_latex_issues(content, filename):
-    """Check for common LaTeX issues."""
-    errors = []
-
-    # Check for double blank lines (can cause Overleaf warnings)
-    if re.search(r'\n\s*\n\s*\n', content):
-        errors.append("Multiple consecutive blank lines found")
-
-    # Check for trailing whitespace
-    lines_with_trailing_ws = [i+1 for i, line in enumerate(content.split('\n'))
-                               if line.rstrip() != line]
-    if lines_with_trailing_ws:
-        errors.append(f"Trailing whitespace on lines: {lines_with_trailing_ws[:5]}{'...' if len(lines_with_trailing_ws) > 5 else ''}")
-
-    return errors
-
-
-def validate_latex_file(filepath):
-    """Validate a single LaTeX file."""
-    content = read_file(filepath)
-    if content is None:
-        return []
-
-    all_errors = []
-    filename = os.path.basename(filepath)
-
-    # Run all checks
-    all_errors.extend(check_balanced_braces(content))
-    all_errors.extend(check_balanced_brackets(content))
-    all_errors.extend(check_math_mode_delimiters(content))
-    all_errors.extend(check_begin_end_environments(content))
-    all_errors.extend(check_document_environment(content))
-    all_errors.extend(check_bibliography_commands(content, filename))
-    all_errors.extend(check_common_latex_issues(content, filename))
-
-    return all_errors
-
-
-def main():
-    """Main entry point."""
-    if len(sys.argv) < 2:
-        # Default: check all .tex files in current directory
-        tex_files = list(Path('.').glob('**/*.tex'))
+def main(argv: list[str]) -> int:
+    if len(argv) < 2:
+        tex_files = sorted(Path(".").glob("**/*.tex"))
     else:
         tex_files = []
-        for arg in sys.argv[1:]:
+        for arg in argv[1:]:
             path = Path(arg)
-            if path.is_file() and path.suffix == '.tex':
+            if path.is_file() and path.suffix == ".tex":
                 tex_files.append(path)
             elif path.is_dir():
-                tex_files.extend(path.glob('**/*.tex'))
+                tex_files.extend(sorted(path.glob("**/*.tex")))
 
     if not tex_files:
         print("No .tex files found")
         return 0
 
-    all_errors = {}
-    for filepath in sorted(tex_files):
-        errors = validate_latex_file(str(filepath))
-        if errors:
-            all_errors[str(filepath)] = errors
+    all_problems: dict[str, list[str]] = {}
+    for filepath in tex_files:
+        problems = compile_check(filepath)
+        if problems:
+            all_problems[str(filepath)] = problems
 
-    # Report results
-    if not all_errors:
-        print(f"✓ All {len(tex_files)} LaTeX file(s) passed validation")
+    if not all_problems:
+        print(f"\u2713 All {len(tex_files)} LaTeX file(s) compiled cleanly")
         return 0
 
-    print(f"\n✗ Found issues in {len(all_errors)} file(s):\n")
-
-    for filepath, errors in sorted(all_errors.items()):
+    print(f"\n\u2717 {len(all_problems)} file(s) failed to compile cleanly:\n")
+    for filepath, problems in sorted(all_problems.items()):
         print(f"{filepath}:")
-        for error in errors:
-            print(f"  - {error}")
+        for problem in problems:
+            print(f"  - {problem}")
         print()
-
     return 1
 
 
-if __name__ == '__main__':
-    sys.exit(main())
+if __name__ == "__main__":
+    sys.exit(main(sys.argv))
