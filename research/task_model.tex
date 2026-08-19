@@ -105,9 +105,14 @@ Here $CP = |\tau^{\mathrm{HI}}| / n$ is the criticality proportion.
 
 \section{Multi-Level Degradation Model}
 
-\subsection{Degradation Levels}
+\subsection{Degradation Levels and Execution Budgets}
 
-Instead of binary normal/degraded modes, we define $k \geq 2$ degradation levels:
+We define $k \geq 2$ degradation levels, where each level $L_x$ has an associated execution budget
+$C_i^{(x)}$ for each task $\tau_i$. The budgets satisfy:
+
+\[
+C_i^{(0)} = C_i^{\mathrm{lo}} \leq C_i^{(1)} \leq \dots \leq C_i^{(k-2)} \leq C_i^{(k-1)} = C_i^{\mathrm{hi}}
+\]
 
 \begin{table}[h]
 \centering
@@ -139,8 +144,9 @@ Only two modes are analyzed for safety certification:
     \item \textbf{HI-criticality mode:} HI tasks execute with budget $C_i^{(k-1)} = C_i^{\mathrm{hi}}$, LO tasks are abandoned
 \end{itemize}
 
-The intermediate budgets $C_i^{(1)}, \dots, C_i^{(k-2)}$ are used \textbf{only at runtime} for graded degradation.
-They do not affect safety invariants, which are guaranteed by the standard two-mode analysis.
+The intermediate budgets $C_i^{(1)}, \dots, C_i^{(k-2)}$ are used at runtime for graded degradation.
+At run-time, the response time $R_i$ (WCRT) is computed and monitored to determine when to transition
+between degradation levels. The safety invariants are guaranteed by the standard two-mode analysis.
 
 \subsection{Trigger Point Definition}
 
