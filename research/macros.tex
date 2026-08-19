@@ -1,0 +1,16 @@
+% Shared macros for the multi-mode mixed-criticality scheduling papers.
+% \input{macros} from any document in this directory rather than redefining
+% these locally -- a macro defined in one paper's preamble and silently
+% missing from a sibling's is exactly the class of error that put \round and
+% \E undefined in evaluation_methodology.tex.
+
+\newcommand{\N}{\mathbb{N}}
+\newcommand{\R}{\mathbb{R}}
+\newcommand{\Z}{\mathbb{Z}}
+\newcommand{\E}{\mathbb{E}}
+\newcommand{\Var}{\mathrm{Var}}
+\newcommand{\Prob}{\mathbb{P}}
+\newcommand{\Ind}{\mathbf{1}}
+\newcommand{\ceil}[1]{\lceil #1 \rceil}
+\newcommand{\floor}[1]{\lfloor #1 \rfloor}
+\newcommand{\round}[1]{\lfloor #1 \rceil}

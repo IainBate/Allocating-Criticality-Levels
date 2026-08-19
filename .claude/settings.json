@@ -1,0 +1,17 @@
+{
+  "hooks": {
+    "PostToolUse": [
+      {
+        "matcher": "Write|Edit",
+        "hooks": [
+          {
+            "type": "command",
+            "command": "jq -r '.tool_input.file_path // empty' | { read -r f; case \"$f\" in *.tex|*.bib) cd \"${CLAUDE_CWD}\" && out=$(python3 validate_latex.py \"$(dirname \"$f\")\" 2>&1); jq -n --arg ctx \"$out\" '{hookSpecificOutput:{hookEventName:\"PostToolUse\", additionalContext:$ctx}}' ;; esac; }",
+            "statusMessage": "Compiling LaTeX to check for errors...",
+            "timeout": 120
+          }
+        ]
+      }
+    ]
+  }
+}
