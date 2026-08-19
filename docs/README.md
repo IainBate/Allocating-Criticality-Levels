@@ -103,7 +103,8 @@ Phase 2: Metrics & Complexity
 └── complexity_analysis.md       (Time/space overhead analysis)
 
 Phase 3: Optimal Mode Design
-└── mode_optimization.md         (Optimization methods for k and triggers)
+├── mode_optimization.md              (Plan: severity-lattice enumeration, single method)
+└── ../research/mode_optimization.tex (Paper: landscape, related work, recommendation)
 
 Phase 4: Drop Strategy Research
 └── drop_strategy_research.md    (Drop strategies, exit policies)
