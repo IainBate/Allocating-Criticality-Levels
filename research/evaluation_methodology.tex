@@ -69,10 +69,18 @@ where:
 For $k$-level scheduling, we define the objective function:
 
 \[
-\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
+\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{NiD}]
 \]
 
-where $\mathrm{WastedCPU}$ is the CPU cycles spent on abandoned LO work, and $\alpha, \beta, \gamma$ are weighting coefficients.
+where:
+\begin{itemize}
+    \item $\mathrm{JNE}$: Jobs Not Executed (LO jobs dropped)
+    \item $\mathrm{TiD}$: Fraction of time spent in degraded mode
+    \item $\mathrm{WastedCPU}$: CPU cycles spent on abandoned LO work
+    \item $\mathrm{NiD}$: Number of times degraded mode is entered (penalizes frequent mode changes)
+\end{itemize}
+The coefficients $\alpha, \beta, \gamma, \delta$ are weighting parameters that can be tuned based on
+application requirements.
 
 \section{Simulation Parameters}
 
