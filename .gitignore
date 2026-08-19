@@ -25,6 +25,9 @@ results/figures/
 results/SUMMARY.md
 results/VALIDATION.md
 
+# LaTeX validation script (tracked separately for documentation)
+!validate_latex.py
+
 # LaTeX files (synced to Overleaf - do not ignore, but track)
 # *.tex files are managed via Overleaf sync
 
@@ -33,3 +36,6 @@ uv.lock
 
 # OS
 .DS_Store
+
+# Git hooks
+.git/hooks/
