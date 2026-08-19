@@ -194,8 +194,8 @@ core liability: it is iterative and local, so it inherits both the winner's
 curse of repeated noisy evaluation and a dependence on the smoothness this
 document has not established.
 
-\section{Recommendation}
-\label{sec:recommendation}
+\section{Working Hypothesis, and Why It Is Not Yet a Conclusion}
+\label{sec:hypothesis}
 
 \textbf{Exhaustive enumeration of the ordered severity lattice
 (\Cref{sec:landscape}), evaluated under common random numbers.} Every
@@ -209,16 +209,22 @@ quantified cost (winner's-curse bias, or an unrepresentative sample of the
 surface) that this domain does not need paid. Enumeration additionally
 reports the whole surface natively, has one hyperparameter -- grid resolution
 -- against a genetic algorithm's at least eight or a Gaussian process's
-comparable number, and needs no additional dependency. This recommendation is
-conditional, not permanent: it should be revisited if $k$ grows past roughly
-six levels, or if the trigger vector gains dimensions (per-task rather than
-per-level triggers scale with $n$, not $k$, and enumeration stops being
-affordable) -- at that point a Bayesian method adopted \emph{with} the paired
-evaluation protocol below is the natural replacement, since the case against
-it here is about cost, not principle.
+comparable number, and needs no additional dependency.
 
-Whichever method is used, it must respect the noise floor
-\Cref{sec:landscape} establishes: configurations are compared as paired
+That argument is structural: it follows from counting the feasible set and
+from the measured cost of one evaluation, and it does not depend on knowing
+$\Phi$'s shape. It is not, on its own, an empirical result. It has not been
+checked against a real comparison between methods, and the pilot in
+\Cref{sec:protocol} shows at least one place a plausible intuition about this
+problem turned out to be wrong when actually measured
+(\Cref{sec:phase-c}) -- which is reason enough not to extend the same trust to
+an argument that has not been tested at all. \Cref{sec:protocol} is the
+protocol that tests it, structured so that if the hypothesis is wrong, that
+becomes visible before it is load-bearing for the rest of this work, rather
+than after.
+
+Whichever method the protocol below settles on, it must respect the noise
+floor \Cref{sec:landscape} establishes: configurations are compared as paired
 samples under common random numbers, never as independent means, since an
 unpaired comparison at this simulator's measured noise needs roughly two
 orders of magnitude more task sets to resolve the same effect
