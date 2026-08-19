@@ -54,12 +54,13 @@ The primary research plan that outlines the entire project structure:
 
 | File | Description |
 |------|-------------|
-| `mode_optimization.md` | **Phase 3 plan** - Methods for finding optimal k and trigger point spacing (grid search, genetic algorithm, Bayesian optimization) |
+| `mode_optimization.md` | **Phase 3 plan** - severity-lattice enumeration under common random numbers (single method; rationale below) |
+| `../research/mode_optimization.tex` | Paper: problem characterisation (search-space size, objective noise), related work on optimisation techniques, and the recommendation |
 
 **Key questions addressed**:
 - What is the optimal number of degradation levels?
-- How should trigger points be spaced (R_1 ≤ R_2 ≤ ... ≤ R_{k-1})?
-- Which optimization method works best for different k ranges?
+- How should severities be spaced (χ_2 ≤ χ_3 ≤ ... ≤ χ_{k-2}, with χ_1 = 0 and χ_{k-1} pinned)?
+- Which optimisation method is appropriate, given the search space is small enough to enumerate exhaustively and the binding constraint is Monte-Carlo noise rather than search cost (see `mode_optimization.tex`)?
 
 ---
 
