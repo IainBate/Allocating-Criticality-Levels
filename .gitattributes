@@ -1,0 +1,5 @@
+# research/references.bib is a verbatim snapshot of an external master bib
+# (see `make sync-bib` in research/Makefile) -- its formatting belongs to that
+# source, not this repo, so it is exempt from the whitespace check the
+# pre-commit hook runs (git diff-index --check).
+research/references.bib -whitespace
