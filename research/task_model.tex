@@ -603,11 +603,45 @@ so it has nothing to be rescued from. Consistently, a retained LO-criticality
 task has a median $87.2\%$ of its deadline still remaining at the instant it
 first becomes eligible to fire a rung, so it essentially never does.
 
-The mechanism therefore has value only where clause 2 is weakened -- where
-lower-ranked \emph{retained} tasks are permitted to miss, giving a third state
-between protected and abandoned -- or in populations whose LO-criticality tasks
-have far less slack than these. Reporting it as an unconditional improvement
-would not be supported by the measurements.
+\textbf{The redundancy is structural, not incidental.} Under clause 2 the
+mechanism can have no customer at all, by the following argument.
+
+\begin{enumerate}
+\item A \emph{retained} LO-criticality task is one the analysis has certified
+  meets its deadline at every level with the drop set applied. It is therefore
+  never in danger at $L_1, \dots, L_{k-1}$, so it never needs to demand a
+  deeper level for its own protection.
+\item A task that \emph{is} in danger is, by clause 2, shed rather than
+  retained -- shedding is precisely the analysis's response to a task it cannot
+  certify.
+\item A shed task has $\ell_i < x$ for every rung $x$ that could help it, and
+  the trigger rule admits $\tau_i$ to rung $x$ only when $\ell_i \geq x$. Under
+  the shed-early policy of \Cref{sec:admissibility} every shed task has
+  $\ell_i = 0$ and is admitted to no rung whatsoever. A task may not demand its
+  own abandonment.
+\end{enumerate}
+
+So no task is simultaneously \emph{permitted} to use the mechanism and
+\emph{in need} of it. The measurements agree exactly: over 40 task sets with
+deadlines tightened to $30\%$ of the way from $R_i^{\mathrm{lo}}$ to $T_i$ at
+$U = 0.7$, $f_p = 0.2$, all $690$ LO-criticality deadline misses fell on shed
+tasks and $0$ on retained tasks. Tightening deadlines does not help, because it
+selects \emph{for} slack among the survivors: any task tight enough to be at
+risk is shed rather than retained.
+
+The one gap in the argument is $L_0$, which clause 2 does not cover -- a
+retained task can in principle be endangered there by an undetected overrun,
+and this is the only place the mechanism could act. Empirically it never is:
+the median retained LO-criticality task still has $88$--$96\%$ of its deadline
+remaining when it first becomes eligible to fire.
+
+\textbf{Consequence.} Mechanism~2 is worth having only if clause 2 is weakened
+so that lower-ranked \emph{retained} tasks may miss -- creating a third state
+between protected and abandoned, and with it a population of tasks that are
+both permitted to trigger and in need of doing so. Under clause 2 as stated,
+$x_{\mathrm{LO}}$ should be left at $0$, and the generalised trigger retained in
+the model as the mechanism that a weakened clause 2 would activate rather than
+as a present improvement.
 
 The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
 $R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
