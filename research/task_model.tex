@@ -21,14 +21,23 @@
 
 \section{Introduction}
 
-This document presents the formal task model used in our research on multi-mode mixed-criticality (MC) scheduling. The model extends traditional two-mode Adaptive Mixed-Criticality (AMC) scheduling to support multiple criticality levels, enabling graded degradation rather than binary normal/degraded transitions.
+This document presents the formal task model used in our research on multi-mode
+mixed-criticality (MC) scheduling. The model extends traditional two-mode
+Adaptive Mixed-Criticality (AMC) scheduling to support multiple criticality
+levels, enabling graded degradation rather than a single normal/degraded
+transition.
 
-\textbf{Key analysis principle:} Safety certification is performed for only two modes:
-\begin{enumerate}
-    \item \textbf{Normal mode ($L_0$):} All tasks execute with their normal budgets $C_i^{\mathrm{lo}}$
-    \item \textbf{HI-criticality mode:} HI tasks execute with budget $C_i^{\mathrm{hi}}$, LO tasks are abandoned
-\end{enumerate}
-The intermediate degradation levels ($L_1$ through $L_{k-2}$) use runtime-only execution budgets that do not affect safety invariants.
+\textbf{Key analysis principle.} Every degradation level has its own execution
+budget, not just normal and fully-degraded. What makes the scheme analysable is
+not that only two budgets exist -- they do not -- but that each level's
+worst-case execution time (WCET) budget is converted, via the \emph{same}
+response-time analysis used for classic two-level AMC, into a worst-case
+response time (WCRT) that is monitored at run time. Reaching that WCRT is what
+triggers the transition into that level. Safety is preserved because each
+level's operating point -- its budget together with the set of LO-criticality
+tasks it keeps running -- is checked at design time against exactly this
+analysis, generalised across levels rather than restricted to two
+(\Cref{sec:admissibility}).
 
 The model builds upon the foundational work presented in~\cite{9804600}.
 
@@ -36,7 +45,9 @@ The model builds upon the foundational work presented in~\cite{9804600}.
 
 \subsection{Basic Task Properties}
 
-A task set $\tau = \{\tau_1, \tau_2, \dots, \tau_n\}$ consists of $n$ independent, sporadically arriving tasks. Each task $\tau_i$ is characterized by:
+A task set $\tau = \{\tau_1, \tau_2, \dots, \tau_n\}$ consists of $n$
+independent, sporadically arriving tasks. Each task $\tau_i$ is characterized
+by:
 
 \begin{table}[h]
 \centering
@@ -47,14 +58,34 @@ Symbol & Name & Description \\
 \midrule
 $T_i \in \N^+$ & Period & Minimum inter-arrival time (ticks) \\
 $D_i \in \N^+$ & Deadline & Relative deadline ($D_i = T_i$ for implicit deadlines) \\
-$C_i^{(0)} \in \N^+$ & Normal budget & Maximum execution in $L_0$ (all tasks run normally) \\
-$C_i^{(k-1)} \in \N^+$ & HI execution budget & Maximum execution in $L_{k-1}$ (HI tasks only) \\
-$\mathrm{BCET}_i \in \N^+$ & Best-case execution time & $\mathrm{BCET}_i \leq C_i^{(0)}$ \\
+$C_i^{\mathrm{lo}} \in \N^+$ & Normal budget & Execution budget in normal mode \\
+$C_i^{\mathrm{hi}} \in \N^+$ & HI execution budget & Execution budget once fully degraded ($C_i^{\mathrm{hi}} \geq C_i^{\mathrm{lo}}$) \\
+$\mathrm{BCET}_i \in \N^+$ & Best-case execution time & $\mathrm{BCET}_i \leq C_i^{\mathrm{lo}}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The intermediate budgets $C_i^{(1)}, \dots, C_i^{(k-2)}$ are runtime-only values used for graded degradation.
+\subsection{Severity and Per-Level Budgets}
+\label{sec:severity-budgets}
+
+Every degradation level has its own execution budget. Rather than name each
+level's budget independently, we index it by a \emph{severity}
+$\chi \in [0, 1]$ and interpolate:
+
+\[
+C_i(\chi) = \max\bigl(C_i^{\mathrm{lo}},\; C_i^{\mathrm{lo}} + \chi \cdot (C_i^{\mathrm{hi}} - C_i^{\mathrm{lo}})\bigr)
+\]
+
+so that $C_i(0) = C_i^{\mathrm{lo}}$, $C_i(1) = C_i^{\mathrm{hi}}$, and $\chi$
+between the two endpoints gives an intermediate budget. The outer $\max$ is not
+decorative: it is what guarantees $C_i(\chi) \geq C_i^{\mathrm{lo}}$ for every
+$\chi$, which in turn is what makes the response times derived from it never
+earlier than the normal-mode response time (\Cref{prop:c} below) -- rounding
+must never be allowed to violate it. Linear interpolation is a design choice,
+not a derivation: every property in this document holds for any interpolation
+that is monotone in $\chi$ and never below $C_i^{\mathrm{lo}}$, so a
+better-motivated member of that family is an open question, not a constraint
+this analysis depends on.
 
 \subsection{Criticality Assignment}
 
@@ -63,162 +94,275 @@ Each task is assigned a criticality level:
 \kappa_i \in \{\mathrm{HI}, \mathrm{LO}\}
 \]
 
-Let $\tau^{\mathrm{HI}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{HI}\}$ and $\tau^{\mathrm{LO}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{LO}\}$ denote the HI-criticality and LO-criticality subsets, respectively.
+Let $\tau^{\mathrm{HI}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{HI}\}$ and
+$\tau^{\mathrm{LO}} = \{\tau_i \in \tau \mid \kappa_i = \mathrm{LO}\}$ denote the
+HI-criticality and LO-criticality subsets, respectively.
 
 \subsection{Utilisation}
 
 The utilisation of task $\tau_i$ under different criticality modes is:
 
 \[
-U_i^{\mathrm{lo}} = \frac{C_i^{(0)}}{T_i}, \quad
+U_i^{\mathrm{lo}} = \frac{C_i^{\mathrm{lo}}}{T_i}, \quad
 U_i^{\mathrm{hi}} = \begin{cases}
-    \frac{C_i^{(k-1)}}{T_i} & \text{if } \kappa_i = \mathrm{HI} \\
+    \frac{C_i^{\mathrm{hi}}}{T_i} & \text{if } \kappa_i = \mathrm{HI} \\
     0 & \text{if } \kappa_i = \mathrm{LO}
 \end{cases}
 \]
 
-The total LO-criticality utilisation is:
-\[
-U = \sum_{i=1}^n U_i^{\mathrm{lo}}
-\]
-
+The total LO-criticality utilisation is $U = \sum_{i=1}^n U_i^{\mathrm{lo}}$.
 The HI-criticality utilisation factor (CF) relates aggregate utilisations:
 \[
 U^{\mathrm{hi}} = \sum_{\tau_i \in \tau^{\mathrm{HI}}} U_i^{\mathrm{hi}}, \quad
 \text{where } U^{\mathrm{hi}} = CP \cdot CF \cdot U
 \]
-
 Here $CP = |\tau^{\mathrm{HI}}| / n$ is the criticality proportion.
 
-\section{Multi-Level Degradation Model}
+\section{Response Time Analysis}
+\label{sec:rta}
 
-\subsection{Degradation Levels and Execution Budgets}
+This section presents the standard fixed-priority response-time analysis, then
+generalises it to a severity $\chi$. It is placed before the degradation model
+(\Cref{sec:multilevel}) because that model's trigger points and safety argument
+are both stated in terms of the response times defined here.
 
-We define $k \geq 2$ degradation levels, where each level $L_x$ has an associated execution budget
-$C_i^{(x)}$ for each task $\tau_i$. The budgets satisfy:
+\subsection{Normal-Mode Response Time}
+\label{sec:r-lo}
 
+For fixed-priority preemptive scheduling, the response time of task $\tau_i$
+under normal-mode budgets is the least fixed point of
 \[
-C_i^{(0)} = C_i^{\mathrm{lo}} \leq C_i^{(1)} \leq \dots \leq C_i^{(k-2)} \leq C_i^{(k-1)} = C_i^{\mathrm{hi}}
+R_i^{\mathrm{lo}} = C_i^{\mathrm{lo}} + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{\mathrm{lo}}
 \]
+where $\mathrm{hp}(i)$ is the set of tasks with higher priority than $\tau_i$.
+\textbf{Requirement R1}, that a task set meets every deadline when every job
+complies with its LO budget, holds exactly when $R_i^{\mathrm{lo}} \leq D_i$ for
+every $\tau_i \in \tau$.
+
+\subsection{Classic Two-Level Schedulability (AMC-rtb)}
+\label{sec:amc-rtb}
+
+The design-time question "can this task set tolerate full degradation at
+all?" is answered independently of any run-time trigger, by the AMC-rtb test.
+For a HI-criticality task $\tau_i$, the response time once every LO-criticality
+task has been abandoned is the least fixed point of
+\[
+R_i^{\mathrm{hi}} = C_i^{\mathrm{hi}}
+  + \sum_{\tau_j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{\mathrm{hi}}
+  + \sum_{\tau_k \in \mathrm{hp}_{\mathrm{LO}}(i)} \min\!\left( \left\lceil \frac{R_i^{\mathrm{hi}}}{T_k} \right\rceil,\; \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil + 1 \right) C_k^{\mathrm{lo}}
+\]
+where $\mathrm{hp}_{\mathrm{HI}}(i)$ and $\mathrm{hp}_{\mathrm{LO}}(i)$ are the
+higher-priority HI-criticality and LO-criticality tasks, respectively. The
+$\min(\cdot,\cdot)$ term bounds the interference from a higher-priority
+LO-criticality task by the number of its jobs that can still be in flight when
+degradation begins -- at most one more than it would have released by
+$R_i^{\mathrm{lo}}$ -- since every LO-criticality task is abandoned on release
+once fully degraded. A task set is AMC-rtb schedulable if $R_i^{\mathrm{hi}}
+\leq D_i$ for every $\tau_i \in \tau^{\mathrm{HI}}$ and $R_i^{\mathrm{lo}} \leq
+D_i$ for every $\tau_i \in \tau$.
+
+This is the two-level baseline this work compares against, and the degenerate
+case ($k = 2$, every LO-criticality task abandoned at the single trigger) that
+the general model in the next section must reduce to exactly.
+
+\subsection{Severity-Indexed Response Time}
+\label{sec:severity-response}
+
+Generalise \Cref{sec:r-lo} by charging \emph{every} task at severity $\chi$
+rather than only at $C_i^{\mathrm{lo}}$:
+\[
+R_i(\chi) = C_i(\chi) + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i(\chi)}{T_j} \right\rceil C_j(\chi)
+\]
+using the per-task budgets of \Cref{sec:severity-budgets}. If this recurrence
+exceeds $D_i$ before converging, level $\chi$ is unreachable for task $i$ and
+$R_i(\chi) = \infty$ -- a threshold that never fires, rather than the
+partially-iterated value the recurrence had reached, which would depend on
+where iteration happened to stop and break the monotonicity property below.
+
+$R_i(\chi)$ answers a different question from $R_i^{\mathrm{hi}}$ in
+\Cref{sec:amc-rtb}: it is the response time \emph{if every task, including
+every LO-criticality one, were uniformly behaving at severity $\chi$ with none
+yet abandoned}. That is deliberately more pessimistic than the true response
+time once a drop policy is in effect, and pessimism in this direction is what
+makes $R_i(\chi)$ safe to use as a run-time trigger: reaching it is evidence
+that observed behaviour is \emph{at least} that severe, never a false alarm.
+$R_i^{\mathrm{hi}}$, by contrast, models the true operating response time under
+the specific policy "abandon every LO-criticality task", and is a design-time
+schedulability test, not something monitored at run time.
+
+Three properties hold for every task set, and are what the multi-level
+scheme's safety argument (\Cref{sec:admissibility}) rests on. They are checked
+directly, not merely argued, in \texttt{tests/scheduling/test\_severity.py}.
+
+\begin{description}
+\item[(A)] $R_i(0) = R_i^{\mathrm{lo}}$ exactly -- a level at severity $0$
+  triggers at exactly the classic single AMC trigger point.
+\item[(B)] $\chi_a \leq \chi_b \implies R_i(\chi_a) \leq R_i(\chi_b)$ -- the
+  severity-to-response-time map is monotone, so a ladder of increasing
+  severities produces a ladder of non-decreasing triggers, given the
+  $\infty$-saturation above.
+\item[(C)] $R_i(\chi) \geq R_i^{\mathrm{lo}}$ for every $\chi$ -- no severity
+  level ever triggers earlier than the classic AMC trigger.
+\end{description}
+\label{prop:c}
+
+Property (C) is what an earlier fraction-based design ($\chi \cdot
+R_i^{\mathrm{lo}}$ for $\chi < 1$, triggering \emph{below} the classic
+threshold rather than at or above it) violated by construction: measured with
+no HI-criticality behaviour present anywhere, such a threshold at $0.9 \cdot
+R_i^{\mathrm{lo}}$ fired 14{,}118 times across twelve task sets, abandoning 356
+jobs with no fault present. Charging every task's own budget, rather than
+scaling the deadline, is what avoids this.
+
+\section{Multi-Level Degradation Model}
+\label{sec:multilevel}
+
+\subsection{Degradation Levels}
+
+The system has $k \geq 2$ levels $L_0, L_1, \dots, L_{k-1}$, each assigned a
+severity $0 = \chi_1 \leq \chi_2 \leq \dots \leq \chi_{k-1} \leq 1$ (level
+$L_0$ has no severity; it is the absence of any triggered level). Pinning
+$\chi_1 = 0$ is what makes $L_1$ trigger at exactly the classic AMC point
+(property A) and is required by the safety argument in
+\Cref{sec:admissibility}; $\chi_{k-1}$ need not be $1$, though setting it so
+recovers the classic two-level scheme's full protection at the deepest level.
 
 \begin{table}[h]
 \centering
 \caption{Degradation Level Structure}
 \begin{tabular}{cccc}
 \toprule
-Level & Name & Trigger Condition & LO Task Handling \\
+Level & Severity & Trigger Condition & LO Task Handling \\
 \midrule
-$L_0$ & Normal & None & All tasks run normally \\
-$L_1$ & Degraded-1 & HI task reaches $R_1$ & Drop some LO tasks (lowest priority) \\
-$L_2$ & Degraded-2 & HI task reaches $R_2$ & Drop more LO tasks \\
+$L_0$ & -- & None & All tasks run at $C_i^{\mathrm{lo}}$ \\
+$L_1$ & $\chi_1 = 0$ & HI task reaches $R_i(0) = R_i^{\mathrm{lo}}$ & Drop set $S_1$ (Section~\ref{sec:admissibility}) \\
+$L_2$ & $\chi_2$ & HI task reaches $R_i(\chi_2)$ & Drop set $S_2 \supseteq S_1$ \\
 $\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ \\
-$L_{k-1}$ & Fully Degraded & HI task reaches $R_{\mathrm{trigger}}$ & Drop all LO tasks \\
+$L_{k-1}$ & $\chi_{k-1}$ & HI task reaches $R_i(\chi_{k-1})$ & Drop set $S_{k-1} \supseteq \dots \supseteq S_1$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The degradation level transition trigger points satisfy:
-\[
-0 < R_1 \leq R_2 \leq \dots \leq R_{k-2} < R_{k-1} = R_{\mathrm{trigger}}
-\]
-
-\subsection{Analysis Modes vs. Runtime Budgets}
-
-Only two modes are analyzed for safety certification:
-
-\begin{itemize}
-    \item \textbf{Normal mode ($L_0$):} All tasks execute with budget $C_i^{(0)} = C_i^{\mathrm{lo}}$
-    \item \textbf{HI-criticality mode:} HI tasks execute with budget $C_i^{(k-1)} = C_i^{\mathrm{hi}}$, LO tasks are abandoned
-\end{itemize}
-
-The intermediate budgets $C_i^{(1)}, \dots, C_i^{(k-2)}$ are used at runtime for graded degradation.
-At run-time, the response time $R_i$ (WCRT) is computed and monitored to determine when to transition
-between degradation levels. The safety invariants are guaranteed by the standard two-mode analysis.
-
-\subsection{Trigger Point Definition}
-
-The AMC-RH trigger point $R_{\mathrm{trigger}}$ is defined as the response time of an HI-criticality task
-in normal mode:
-
-\[
-R_{\mathrm{trigger}} = R_i^{\mathrm{lo}} = C_i^{(0)} + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{(0)}
-\]
-
-When an HI-criticality job reaches execution time $R_{\mathrm{trigger}}$, the system must transition
-to fully degraded mode ($L_{k-1}$) to preserve safety.
+Each level's operating budget for every task is $C_i(\chi_x)$
+(\Cref{sec:severity-budgets}): a task entering $L_x$ because severity $\chi_x$
+was reached is granted exactly the execution allowance that severity
+justifies, not immediately the full $C_i^{\mathrm{hi}}$ -- that is what makes
+the degradation graded rather than binary. One consequence is worth stating
+plainly: with $\chi_1 = 0$, $L_1$'s operating budget equals $L_0$'s. Entering
+$L_1$ changes nothing about what any task is allowed to execute; it only marks
+that an overrun has been confirmed somewhere; and it must still ask whether any
+LO-criticality task needs to be shed to keep HI tasks safe at that (unchanged)
+budget, which \Cref{sec:admissibility} answers per level. This is the same
+principle Theorem 1 of the safety proof states for $L_0$ itself: protection
+begins no later than the classic trigger, never earlier.
 
 \subsection{Mode Transition Protocol}
 
 The system transitions between degradation levels according to:
-
 \begin{align*}
-L_x \to L_{x+1} &\quad \text{when } \exists \tau_i \in \tau^{\mathrm{HI}}: \text{active job reaches } R_i \in L_x \\
+L_x \to L_{x+1} &\quad \text{when } \exists\, \tau_i \in \tau^{\mathrm{HI}}: \text{active job reaches } R_i(\chi_{x+1}) \\
 L_x \to L_y &\quad y < x \text{ on exit (direct or cascade, per protocol design)}
 \end{align*}
+The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
+$R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
+$\chi_{k-1} = 1$ it recovers the classic AMC trigger for full degradation.
 
-Each level $L_x$ specifies:
-\begin{itemize}
-    \item A drop policy $\pi_x$ determining which LO tasks are abandoned
-    \item An exit condition $\xi_x$ determining when to leave $L_x$
-\end{itemize}
+\section{Admissible Drop Sets and Safety}
+\label{sec:admissibility}
+
+Retaining LO-criticality work at an intermediate level necessarily means
+absorbing interference that abandoning it would have avoided -- so the drop
+set $S_x$ at each level is not a free design choice, it is an obligation
+discharged by response-time analysis at design time.
+
+\textbf{Definition (admissible drop set).} $S_x \subseteq \tau^{\mathrm{LO}}$
+is \emph{admissible} at severity $\chi_x$ if, charging every task
+$C_i(\chi_x)$, treating tasks in $S_x$ as absent, and every retained
+LO-criticality task at $C_i^{\mathrm{lo}}$:
+\begin{enumerate}
+\item every HI-criticality task $\tau_i$ has response time $R_i \leq D_i$, and
+\item every retained LO-criticality task $\tau_j \notin S_x$ has response time
+  $R_j \leq D_j$.
+\end{enumerate}
+
+Clause 2 is what makes LDM (LO jobs that miss their deadline in degraded mode)
+zero by construction for any retained task: there is no
+JNE-against-LDM trade-off to measure, only JNE against how much of the
+severity range is covered without shedding. An admissible set always exists
+whenever the task set passes AMC-rtb (\Cref{sec:amc-rtb}): $S_x = \tau^{\mathrm{LO}}$
+reduces clause 1 to the AMC-rtb HI-mode test and vacates clause 2, recovering
+the classic two-level scheme exactly. So the question a drop policy answers is
+never \emph{whether} a level is feasible, only how little must be shed --
+which is what makes the drop set an optimisation rather than a guess, and is
+addressed separately (drop-strategy research, out of scope for this document).
+
+Measured over 50 AMC-rtb-schedulable task sets ($n=12$, $U=0.7$, $CF=2$),
+minimal admissible sets shed markedly less than the classic scheme's blanket
+100\%:
+
+\begin{table}[h]
+\centering
+\caption{Minimal admissible LO-criticality tasks shed, by severity}
+\begin{tabular}{lc}
+\toprule
+Severity $\chi$ & LO tasks shed \\
+\midrule
+$\leq 0.25$ & 0.0\% \\
+0.50 & 10.0\% \\
+0.75 & 33.7\% \\
+1.00 & 56.3\% \\
+\midrule
+classic two-level (single trigger) & 100\% \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{Nesting.} $S_1 \subseteq S_2 \subseteq \dots \subseteq S_{k-1}$ is
+required so that a level transition only ever adds to the drop set, keeping
+the run-time decision incremental. This holds automatically for any drop
+strategy that is a pure function of the task set and the remaining candidates
+(such greedy strategies shed the same sequence of tasks regardless of
+severity, so each level's set is a prefix of one sequence, and prefixes nest)
+-- it is not an extra assumption on top of the definition above.
+
+\textbf{Scope of this analysis.} The response-time bound above treats a
+shed task's interference as ceasing the instant its level is entered. The
+simulator, like the classic scheme, instead lets a job already released
+continue to completion and abandons only that task's \emph{future} releases --
+so a task shed at the transition instant can still contribute the interference
+of one job already in flight, exactly the quantity the $\min(\cdot,\cdot)$ term
+in \Cref{sec:amc-rtb} bounds for the classic two-level case. The admissibility
+check in this section does not yet include that term for a general drop set;
+doing so is a direct generalisation of \Cref{sec:amc-rtb}'s bound and is
+necessary before this analysis is relied on as a safety guarantee, rather than
+as the sound-in-the-limit design it currently is.
 
 \section{Job Execution Model}
 
 \subsection{Execution Time Distribution}
 
 Each job's execution time is drawn at release:
-
 \[
 E_i \sim
 \begin{cases}
-\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{(0)}) & \text{if } \kappa_i = \mathrm{LO} \\
-\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{(0)}) & \text{if } \kappa_i = \mathrm{HI}, \text{normal mode} \\
-\mathrm{Uniform}(C_i^{(0)}, C_i^{(k-1)}) & \text{if } \kappa_i = \mathrm{HI}, \text{HI behaviour}
+\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{\mathrm{lo}}) & \text{if } \kappa_i = \mathrm{LO} \\
+\mathrm{Uniform}(\mathrm{BCET}_i, C_i^{\mathrm{lo}}) & \text{if } \kappa_i = \mathrm{HI}, \text{normal behaviour} \\
+\mathrm{Uniform}(C_i^{\mathrm{lo}}, C_i^{\mathrm{hi}}) & \text{if } \kappa_i = \mathrm{HI}, \text{HI behaviour}
 \end{cases}
 \]
-
 HI-criticality behaviour occurs with probability $FP = 1/N$ per job.
 
 \subsection{Execution Budget Enforcement}
 
-During execution, jobs are constrained by their budgets:
-
+During execution, a job is constrained by the budget of the level the system
+is in \emph{when that job is released}:
 \[
-\text{Actual execution} = \min(E_i, B_i)
+\text{Actual execution} = \min(E_i, C_i(\chi_x))
 \]
-where $B_i = C_i^{(0)}$ in normal mode and $B_i = C_i^{(k-1)}$ in degraded mode for HI tasks.
-
-\section{Schedulability Analysis}
-
-\subsection{Response Time Analysis (RTA)}
-
-For fixed-priority preemptive scheduling, the response time of task $\tau_i$ is computed via fixed-point iteration:
-
-\textbf{Normal Mode Response Time:}
-\[
-R_i^{\mathrm{lo}} = C_i^{(0)} + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{(0)}
-\]
-
-where $\mathrm{hp}(i)$ is the set of higher-priority tasks.
-
-\textbf{HI-Criticality Response Time:}
-\[
-R_i^{\mathrm{hi}} = C_i^{(k-1)} + \sum_{\tau_j \in \mathrm{hp}_{\mathrm{HI}}(i)} \left\lceil \frac{R_i^{\mathrm{hi}}}{T_j} \right\rceil C_j^{(k-1)}
-+ \sum_{\tau_k \in \mathrm{hp}_{\mathrm{LO}}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_k} \right\rceil C_k^{(0)}
-\]
-
-where $\mathrm{hp}_{\mathrm{HI}}(i)$ and $\mathrm{hp}_{\mathrm{LO}}(i)$ are higher-priority HI-criticality and LO-criticality tasks, respectively.
-
-\subsection{AMC-rtb Schedulability Test}
-
-A task set is AMC-rtb schedulable if:
-\[
-R_i^{\mathrm{hi}} \leq D_i \quad \forall \tau_i \in \tau^{\mathrm{HI}}
-\]
-and
-\[
-R_i^{\mathrm{lo}} \leq D_i \quad \forall \tau_i \in \tau
-\]
+where $\chi_x$ is the severity of the current level $L_x$ ($\chi_1 = 0$ at the
+shallowest degraded level, up to $\chi_{k-1}$ at the deepest). This is a
+budget per level, not per mode: at $k = 2$ it recovers $B_i = C_i^{\mathrm{lo}}$
+in normal mode and $B_i = C_i^{\mathrm{hi}}$ once degraded.
 
 \section{Notation Summary}
 
@@ -234,17 +378,20 @@ $n$ & Number of tasks \\
 $k$ & Number of degradation levels ($k \geq 2$) \\
 $\kappa_i$ & Criticality of task $i$ ($\mathrm{HI}$ or $\mathrm{LO}$) \\
 $T_i, D_i$ & Period and deadline of task $i$ \\
-$C_i^{(0)}$ & Normal mode execution budget (analyzed) \\
-$C_i^{(1)}, \dots, C_i^{(k-2)}$ & Intermediate runtime budgets (runtime-only) \\
-$C_i^{(k-1)}$ & Fully degraded budget (analyzed for HI tasks) \\
+$C_i^{\mathrm{lo}}, C_i^{\mathrm{hi}}$ & Normal and HI-criticality execution budgets \\
+$\chi \in [0,1]$ & Severity; $0$ = normal, $1$ = fully degraded \\
+$C_i(\chi)$ & Execution budget for task $i$ at severity $\chi$ \\
 $\mathrm{BCET}_i$ & Best-case execution time \\
-$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes (analyzed) \\
-$R_i^{\mathrm{lo}}, R_i^{\mathrm{hi}}$ & Response times in LO/HI modes (analyzed) \\
-$R_{\mathrm{trigger}}$ & AMC-RH trigger point = $R_i^{\mathrm{lo}}$ for HI tasks \\
+$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes \\
+$R_i^{\mathrm{lo}}$ & Normal-mode response time (Section~\ref{sec:r-lo}) \\
+$R_i^{\mathrm{hi}}$ & Classic two-level HI-mode response time (Section~\ref{sec:amc-rtb}) \\
+$R_i(\chi)$ & Severity-indexed response time / run-time trigger threshold (Section~\ref{sec:severity-response}) \\
+$R_{\mathrm{trigger}}$ & $R_i(\chi_{k-1})$, the deepest level's trigger \\
+$\chi_x$ & Severity assigned to level $L_x$ \\
+$S_x$ & Drop set at level $L_x$ (Section~\ref{sec:admissibility}) \\
 $FP = 1/N$ & HI-behaviour probability per job \\
 $\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
 $L_x$ & Degradation level $x$ ($0 \leq x < k$) \\
-$R_x$ & Trigger point for level $L_x$ \\
 \bottomrule
 \end{tabular}
 \end{table}
