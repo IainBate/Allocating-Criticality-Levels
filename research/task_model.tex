@@ -73,10 +73,16 @@ in \Cref{sec:operating-points} because they suit different certification
 appetites. The \emph{conservative} point keeps clause 2, so every retained
 LO-criticality task is certified to complete and LDM is zero by analysis; it
 needs no new execution model, being sound under the original two-level
-semantics, and still improves service ratio over AMC-RH by $1.6$ to $3.0$
-percentage points. The \emph{termination} point relaxes clause 2 and adds a
-further $1.1$ to $2.8$. Neither helps in the hardest regime tested, where both
-collapse onto AMC-RH -- reported rather than omitted.
+semantics. The \emph{termination} point relaxes clause 2 for more retained
+work, at the cost of accepting that a job may be discarded having run. Across
+the properly-powered regime map of $32$ configurations
+(mode\_optimization.tex, ``Stage Results''; $U \in \{0.6,\ldots,0.9\}$, both
+deadline regimes), both points beat two-level AMC-RA in \emph{every} cell
+tested -- $+2.4\%$ to $+12.4\%$ for the conservative point, $+3.5\%$ to
+$+27.3\%$ for termination -- and the gain widens as the regime hardens rather
+than collapsing. An earlier draft of this document reported a loss in the
+hardest regime tested; that claim came from an underpowered pilot and did not
+reproduce (\Cref{sec:operating-points}).
 
 Two findings are consequential and negative, and are reported as such.
 \emph{Progressive} shedding cannot be certified on $47\%$ of an otherwise
