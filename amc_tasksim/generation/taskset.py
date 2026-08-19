@@ -133,6 +133,7 @@ def generate_taskset(
     N: int = 10000,
     hi_mode: HiMode = "drs_independent",
     period_range: tuple[int, int] = (100, 10000),
+    period_mode: PeriodMode = "log_uniform",
     bcet_fraction_range: tuple[float, float] = (0.8, 1.0),
     rng_seed: int | None = None,
 ) -> TaskSet:
@@ -150,6 +151,17 @@ def generate_taskset(
         hi_mode: "drs_independent" for the papers' procedure, "fixed_ratio" for
             the legacy per-task multiplier.
         period_range: (min, max) for log-uniform period generation, in ticks.
+            Ignored when period_mode is "semi_harmonic".
+        period_mode: "log_uniform" (default) draws periods from a log-uniform
+            distribution over period_range -- what the paper calls
+            "non-harmonic" periods. "semi_harmonic" instead draws each
+            period from the paper's two base-frequency families (25, 50,
+            100, 250, 500, 1000 and 20, 40, 80, 200, 400, 800ms), which the
+            paper's own results show produces markedly worse JNE+LDM than
+            log-uniform periods at the same utilisation -- synchronised
+            harmonic periods create longer, more aligned busy periods, so
+            this is the higher-signal setting for comparing degradation
+            schemes against each other.
         bcet_fraction_range: (min, max) fraction of C_i(LO) for BCET.
         rng_seed: Random seed for reproducibility.
 
@@ -164,8 +176,13 @@ def generate_taskset(
 
     # Periods first: the utilisation bounds that keep every budget at one tick
     # or more depend on them.
-    log_periods = rng.uniform(math.log(period_range[0]), math.log(period_range[1]), size=n)
-    T = np.maximum(np.round(np.exp(log_periods)).astype(int), 1)
+    if period_mode == "log_uniform":
+        log_periods = rng.uniform(math.log(period_range[0]), math.log(period_range[1]), size=n)
+        T = np.maximum(np.round(np.exp(log_periods)).astype(int), 1)
+    elif period_mode == "semi_harmonic":
+        T = rng.choice(_SEMI_HARMONIC_PERIODS_TICKS, size=n).astype(int)
+    else:
+        raise ValueError(f"Unknown period_mode: {period_mode}")
     D = T.copy()
 
     if hi_mode == "drs_independent":
