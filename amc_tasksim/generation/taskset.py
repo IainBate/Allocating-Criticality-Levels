@@ -33,6 +33,20 @@ import numpy as np
 from .drs import drs
 
 HiMode = Literal["drs_independent", "fixed_ratio"]
+PeriodMode = Literal["log_uniform", "semi_harmonic"]
+
+# The AMC-RH paper's two base-frequency families (Bate & Burns 2003), in ms,
+# converted to ticks at 0.1ms/tick (the tick unit generate_taskset's own
+# defaults assume: period_range=(100, 10000) ticks == 10ms-1s, matching the
+# paper's "non-harmonic" range exactly). "Semi-harmonic periods were chosen
+# at random from a set of harmonics of two base frequencies" -- read here as
+# the union of both families, each task's period drawn from it uniformly.
+_SEMI_HARMONIC_PERIODS_TICKS = tuple(
+    sorted(
+        int(round(ms * 10))
+        for ms in (25, 50, 100, 250, 500, 1000, 20, 40, 80, 200, 400, 800)
+    )
+)
 
 
 @dataclass
