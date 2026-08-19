@@ -78,24 +78,57 @@ Represent the solution as a set of non-dominated points across:
 
 ## Proposed Objective: Hybrid Approach
 
-We recommend **$\Phi_1$ with adaptive weights**:
+We recommend **$\Phi_1$ with adaptive weights, plus a churn term**:
 
 $$
-\Phi = \alpha(U) \cdot \E[\mathrm{JNE}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
+\Phi = \alpha(U) \cdot \E[\mathrm{JNE}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{LevelTrans}]
 $$
 
 Where weights adapt to total utilisation $U$:
 - Low $U$: $\alpha$ high (focus on preserving LO work)
 - High $U$: $\beta$ high (minimize degradation time)
 - $\gamma$ fixed small value (waste is always undesirable)
+- $\delta$ fixed small value (churn is always undesirable)
+
+### Why a churn term, and why LevelTrans rather than NiD
+
+TiD measures total *duration* in a degraded state; it says nothing about
+*frequency*. A severity ladder with poorly spaced thresholds can oscillate
+across a boundary -- entering and leaving a level repeatedly with short dwell
+times each visit -- while keeping both JNE and TiD low, because each excursion
+is brief. Nothing else in $\Phi$ penalises that, so nothing steers the
+optimiser away from it.
+
+**LevelTrans** (`Number of degradation levels`, defined above) rather than the
+legacy **NiD** (`Number of degraded mode entries`), because NiD only counts
+transitions *out of* $L_0$ and is blind to oscillation entirely within the
+degraded levels ($L_2 \leftrightarrow L_3$, say) -- exactly the failure mode a
+badly-spaced $k$-level ladder can produce, and exactly the case NiD cannot see
+by construction. LevelTrans is a strict generalisation: at $k=2$ it is
+proportional to NiD (each excursion contributes one entry and one exit rather
+than one entry alone), so nothing about the two-level baseline comparison is
+lost.
+
+One caveat worth stating rather than discovering later: LevelTrans grows
+mechanically with $k$ even for equally good behaviour, because reaching the
+same eventual severity through more, finer-grained levels costs more
+transition *events* than reaching it through one big step. This is not a flaw
+to correct — it is the real price of grading the response, and $\Phi$ should
+charge for it rather than assume finer granularity is free. It does mean a
+larger $k$ needs a strictly better JNE/TiD/WastedCPU trade to win on $\Phi$
+overall, which is the correct comparison to make.
+
+NiD remains a **reported** metric (Table above) for direct comparison against
+the AMC-RH baseline, which only ever defines it. It is not double-counted in
+$\Phi$ once LevelTrans is included.
 
 ### Weight Selection Strategy
-| Utilisation Range | $\alpha$ | $\beta$ | $\gamma$ |
-|-------------------|----------|---------|----------|
-| $U < 0.5$ | 1.0 | 0.5 | 0.1 |
-| $0.5 \leq U < 0.7$ | 0.8 | 0.8 | 0.2 |
-| $0.7 \leq U < 0.85$ | 0.5 | 1.0 | 0.3 |
-| $U \geq 0.85$ | 0.3 | 1.0 | 0.5 |
+| Utilisation Range | $\alpha$ | $\beta$ | $\gamma$ | $\delta$ |
+|-------------------|----------|---------|----------|----------|
+| $U < 0.5$ | 1.0 | 0.5 | 0.1 | 0.1 |
+| $0.5 \leq U < 0.7$ | 0.8 | 0.8 | 0.2 | 0.1 |
+| $0.7 \leq U < 0.85$ | 0.5 | 1.0 | 0.3 | 0.15 |
+| $U \geq 0.85$ | 0.3 | 1.0 | 0.5 | 0.15 |
 
 ## "Meaningful Improvement" Criteria
 
