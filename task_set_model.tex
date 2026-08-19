@@ -97,32 +97,54 @@ Here $CP = |\tau^{\mathrm{HI}}| / n$ is the criticality proportion.
 
 \section{Multi-Level Degradation Model}
 
-\subsection{Degradation Levels}
+\subsection{Degradation Levels and Execution Budgets}
 
-Instead of binary normal/degraded modes, we define $k \geq 2$ degradation levels:
+Instead of binary normal/degraded modes, we define $k \geq 2$ degradation levels.
+Each task $\tau_i$ has $k$ execution budgets corresponding to the $k$ criticality modes:
 
 \begin{table}[h]
 \centering
-\caption{Degradation Level Structure}
-\begin{tabular}{cccc}
+\caption{Task Execution Budgets per Degradation Level}
+\begin{tabular}{lll}
 \toprule
-Level & Name & Trigger Condition & LO Task Handling \\
+Symbol & Name & Description \\
 \midrule
-$L_0$ & Normal & None & All tasks run normally \\
-$L_1$ & Degraded-1 & HI task reaches $R_1$ & Drop some LO tasks (lowest priority) \\
-$L_2$ & Degraded-2 & HI task reaches $R_2$ & Drop more LO tasks \\
-$\vdots$ & $\vdots$ & $\vdots$ & $\vdots$ \\
-$L_{k-1}$ & Fully Degraded & HI task reaches $R_{k-1} \approx R_{\mathrm{trigger}}$ & Drop all LO tasks \\
+$C_i^{(0)} = C_i^{\mathrm{lo}}$ & Normal budget & Maximum execution in $L_0$ (all tasks run normally) \\
+$C_i^{(1)}$ & Degraded-1 budget & Runtime budget for $L_1$ (HI tasks only) \\
+$C_i^{(2)}$ & Degraded-2 budget & Runtime budget for $L_2$ (HI tasks only) \\
+$\vdots$ & $\vdots$ & $\vdots$ \\
+$C_i^{(k-1)} = C_i^{\mathrm{hi}}$ & Fully degraded budget & Maximum execution in $L_{k-1}$ (HI tasks only) \\
+$\mathrm{BCET}_i \in \N^+$ & Best-case execution time & $\mathrm{BCET}_i \leq C_i^{(0)}$ \\
 \bottomrule
 \end{tabular}
 \end{table}
 
-The trigger points satisfy:
+\subsection{Analysis Modes vs. Runtime Budgets}
+
+\textbf{Critical distinction:} Only two modes are analyzed for safety certification:
+\begin{itemize}
+    \item \textbf{Normal mode ($L_0$):} All tasks execute with budget $C_i^{(0)} = C_i^{\mathrm{lo}}$
+    \item \textbf{HI-criticality mode:} HI tasks execute with budget $C_i^{\mathrm{hi}}$, LO tasks are abandoned
+\end{itemize}
+
+The intermediate budgets $C_i^{(1)}, \dots, C_i^{(k-2)}$ are used \textbf{only at runtime} for graded degradation.
+They do not affect safety invariants, which are guaranteed by the standard two-mode analysis.
+
+\subsection{Trigger Points}
+
+The degradation level transition trigger points satisfy:
 \[
-0 < R_1 \leq R_2 \leq \dots \leq R_{k-1} = R_{\mathrm{trigger}}
+0 < R_1 \leq R_2 \leq \dots \leq R_{k-2} < R_{k-1}
 \]
 
-where $R_{\mathrm{trigger}}$ is the original AMC-RH trigger point (when an HI-criticality task reaches $R_i^{\mathrm{lo}}$ from its busy period start).
+where $R_{k-1} = R_{\mathrm{trigger}}$ is the AMC-RH trigger point, defined as the response time
+of an HI-criticality task in normal mode:
+\[
+R_{\mathrm{trigger}} = R_i^{\mathrm{lo}} = C_i^{\mathrm{lo}} + \sum_{\tau_j \in \mathrm{hp}(i)} \left\lceil \frac{R_i^{\mathrm{lo}}}{T_j} \right\rceil C_j^{\mathrm{lo}}
+\]
+
+When an HI-criticality job reaches execution time $R_{\mathrm{trigger}}$, the system must transition
+to fully degraded mode ($L_{k-1}$) to preserve safety.
 
 \subsection{Mode Transition Protocol}
 
