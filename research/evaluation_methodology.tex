@@ -1,0 +1,129 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{geometry}
+\usepackage{hyperref}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, urlcolor=blue}
+
+\title{Evaluation Methodology for Multi-Mode Mixed-Criticality Scheduling}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\section{Task Set Generation}
+
+Following DRS (RTSS 2020), utilisation vectors are generated via the Dirichlet-Rescale algorithm.
+
+\subsection{DRS Algorithm}
+
+Given $n$ tasks and target utilisation $U$, the DRS algorithm produces $\mathbf{u} = (u_1, \dots, u_n)$ such that:
+\[
+\sum_{i=1}^n u_i = U, \quad 0 \leq u_i \leq 1
+\]
+
+The algorithm operates via:
+\begin{enumerate}
+    \item Draw $\mathbf{x} \sim \mathrm{Dirichlet}(1, \dots, 1)$ (uniform on simplex)
+    \item Scale: $u_i = U \cdot x_i$
+    \item Apply constraints via rescaling to standard simplex
+\end{enumerate}
+
+\subsection{Task Parameter Generation}
+
+For each task $\tau_i$, parameters are generated as follows:
+
+\begin{align*}
+T_i &\sim \mathrm{LogUniform}(\log(T_{\min}), \log(T_{\max})) \\
+D_i &= T_i \\
+C_i^{(0)} &= \round(u_i \cdot T_i) \\
+\mathrm{BCET}_i &\sim \mathrm{Uniform}(BCET_{\mathrm{min}} \cdot C_i^{(0)}, C_i^{(0)}) \\
+C_i^{(k-1)} &= \min(\round(CF \cdot C_i^{(0)}), T_i)
+\end{align*}
+
+where:
+\begin{itemize}
+    \item $T_{\min}$ and $T_{\max}$ are the minimum and maximum period bounds
+    \item $BCET_{\mathrm{min}}$ is the minimum BCET fraction (typically $0.8$)
+    \item $CF$ is the criticality factor relating normal to degraded budgets
+\end{itemize}
+
+\section{Metrics}
+
+\subsection{Degradation Metrics}
+
+\begin{align*}
+\textbf{NiD} &\quad \text{Number of times degraded mode is entered} \\
+\textbf{TiD} &\quad \text{Fraction of time spent in degraded mode} \\
+\textbf{JNE} &\quad \text{Jobs Not Executed (LO jobs dropped)} \\
+\textbf{LDM} &\quad \text{Late Degraded Mode (LO jobs that miss deadline in degraded mode)} \\
+\textbf{HDM} &\quad \text{High Degradation Mode (HI jobs missing deadline)}
+\end{align*}
+
+\subsection{Objective Function}
+
+For $k$-level scheduling, we define the objective function:
+
+\[
+\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]
+\]
+
+where $\mathrm{WastedCPU}$ is the CPU cycles spent on abandoned LO work, and $\alpha, \beta, \gamma$ are weighting coefficients.
+
+\section{Simulation Parameters}
+
+Common parameter values used in evaluation:
+
+\begin{table}[h]
+\centering
+\caption{Default Simulation Parameters}
+\begin{tabular}{lll}
+\toprule
+Parameter & Default Value & Description \\
+\midrule
+$T_{\min}$ & 100 & Minimum task period (ticks) \\
+$T_{\max}$ & 10000 & Maximum task period (ticks) \\
+$BCET_{\mathrm{min}}$ & 0.8 & Minimum BCET as fraction of $C_i^{(0)}$ \\
+$CF$ & See Section~\ref{sec:parameters} & Criticality factor \\
+$k$ & 2 & Number of degradation levels \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Notation Summary}
+
+\begin{table}[h]
+\centering
+\caption{Notation Reference}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$n$ & Number of tasks \\
+$U$ & Target utilisation \\
+$\mathbf{u}$ & Utilisation vector \\
+$T_i$ & Period of task $i$ \\
+$D_i$ & Deadline of task $i$ \\
+$C_i^{(0)}$ & Normal execution budget \\
+$C_i^{(k-1)}$ & HI execution budget \\
+$\mathrm{BCET}_i$ & Best-case execution time \\
+$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes \\
+$FP = 1/N$ & HI-behaviour probability per job \\
+$CF$ & Criticality factor \\
+$k$ & Number of degradation levels \\
+$\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{References}
+
+\begin{enumerate}
+    \item Baruah, S. et al. ``Generating Utilization Vectors for the Evaluation of Real-Time Scheduling Algorithms.'' RTSS 2020.
+\end{enumerate}
+
+\end{document}
