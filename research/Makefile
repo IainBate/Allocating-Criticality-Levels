@@ -2,7 +2,7 @@
 
 .PHONY: all clean validate compile check-bib sync-bib
 
-all: task_model.pdf evaluation_methodology.pdf
+all: task_model.pdf evaluation_methodology.pdf mode_optimization.pdf
 
 # Real compile check (undefined macros, missing citations, broken \ref) via
 # tectonic, not a syntax-only linter. See validate_latex.py's module docstring
