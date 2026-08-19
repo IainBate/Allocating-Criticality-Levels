@@ -96,7 +96,11 @@ application requirements.
 
 \section{Simulation Parameters}
 
-Common parameter values used in evaluation:
+Common parameter values used in evaluation. These are the defaults of
+\texttt{amc\_tasksim.generation.taskset.generate\_taskset}, quoted here as
+named values rather than literals so the two cannot silently drift apart --
+\texttt{tests/generation/test\_paper\_defaults.py} checks this table against
+the function's actual defaults on every test run.
 
 \begin{table}[h]
 \centering
@@ -105,11 +109,16 @@ Common parameter values used in evaluation:
 \toprule
 Parameter & Default Value & Description \\
 \midrule
-$T_{\min}$ & 100 & Minimum task period (ticks) \\
-$T_{\max}$ & 10000 & Maximum task period (ticks) \\
-$BCET_{\mathrm{min}}$ & 0.8 & Minimum BCET as fraction of $C_i^{(0)}$ \\
-$CF$ & varies by experiment & Criticality factor \\
-$k$ & 2 & Number of degradation levels \\
+$n$ & \defaultNumTasks{} & Number of tasks \\
+$CP$ & \defaultCP{} & Criticality proportion (fraction of tasks HI) \\
+$U$ & \defaultU{} & Target total LO-criticality utilisation \\
+$N$ & \defaultInvFailProb{} & Inverse HI-behaviour probability ($FP = 1/N$) \\
+$T_{\min}$ & \defaultTmin{} & Minimum task period (ticks) \\
+$T_{\max}$ & \defaultTmax{} & Maximum task period (ticks) \\
+$BCET_{\mathrm{min}}$ & \defaultBCETmin{} & Minimum BCET as fraction of $C_i^{\mathrm{lo}}$ \\
+\midrule
+$CF$ & varies by experiment & Criticality factor -- swept, not defaulted \\
+$k$ & 2 (baseline) & Number of degradation levels -- swept in $\{2,3,4\}$ per \texttt{amc\_tasksim.experiments.contract} \\
 \bottomrule
 \end{tabular}
 \end{table}
