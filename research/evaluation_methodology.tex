@@ -59,19 +59,25 @@ where:
 \subsection{Degradation Metrics}
 
 \begin{align*}
-\textbf{NiD} &\quad \text{Number of times degraded mode is entered} \\
+\textbf{NiD} &\quad \text{Number of times degraded mode is entered (from } L_0 \text{ only)} \\
 \textbf{TiD} &\quad \text{Fraction of time spent in degraded mode} \\
 \textbf{JNE} &\quad \text{Jobs Not Executed (LO jobs dropped)} \\
-\textbf{LDM} &\quad \text{Late Degraded Mode (LO jobs that miss deadline in degraded mode)} \\
-\textbf{HDM} &\quad \text{High Degradation Mode (HI jobs missing deadline)}
+\textbf{LDM} &\quad \text{LO Deadline Miss (LO jobs that miss deadline while executing in degraded mode)} \\
+\textbf{HDM} &\quad \text{HI Deadline Miss (HI jobs missing deadline; must be zero for a safe scheme)} \\
+\textbf{LevelTrans} &\quad \text{Number of degradation-level changes, any direction, at any depth}
 \end{align*}
+
+$\mathrm{LevelTrans}$ generalises $\mathrm{NiD}$ for $k > 2$: $\mathrm{NiD}$ only
+counts transitions out of $L_0$, so it cannot see oscillation confined to the
+degraded levels ($L_2 \leftrightarrow L_3$, say), which a badly-spaced severity
+ladder can produce. At $k = 2$ the two are proportional.
 
 \subsection{Objective Function}
 
 For $k$-level scheduling, we define the objective function:
 
 \[
-\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{NiD}]
+\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{LevelTrans}]
 \]
 
 where:
@@ -79,8 +85,11 @@ where:
     \item $\mathrm{JNE}$: Jobs Not Executed (LO jobs dropped)
     \item $\mathrm{TiD}$: Fraction of time spent in degraded mode
     \item $\mathrm{WastedCPU}$: CPU cycles spent on abandoned LO work
-    \item $\mathrm{NiD}$: Number of times degraded mode is entered (penalizes frequent mode changes)
+    \item $\mathrm{LevelTrans}$: Number of level changes (penalizes frequent or oscillating mode changes; see above)
 \end{itemize}
+$\mathrm{NiD}$ remains a reported metric for direct comparison against the
+two-level AMC-RH baseline, which only ever defines it; it is not
+double-counted in $\Phi$ once $\mathrm{LevelTrans}$ is included.
 The coefficients $\alpha, \beta, \gamma, \delta$ are weighting parameters that can be tuned based on
 application requirements.
 
