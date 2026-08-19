@@ -12,11 +12,15 @@ metadata:
 ### Wasted CPU
 Measures CPU cycles spent on LO tasks that were later abandoned:
 
-$$\mathrm{WastedCPU} = \sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty} 
+$$\mathrm{WastedCPU} = \sum_{i \in \tau^{\mathrm{LO}}} \sum_{j=1}^{\infty}
 \left( \min(\text{executed}_{ij}, C_i^{\mathrm{lo}}) \cdot \Ind[\text{job } j \text{ abandoned}] \right)$$
 
 ### Service Ratio
-Fraction of LO-criticality work that completes successfully:
+Fraction of LO-criticality jobs that delivered a result. Measured against
+Exp, the jobs a perfect scheduler would have completed (a function of run
+length and periods alone), **not** as 1 - JNE/releases -- that counts a job as
+served if it was allowed to start, even when it was later discarded having
+produced nothing:
 
 $$\mathrm{ServiceRatio} = \frac{\sum_{i \in \tau^{\mathrm{LO}}} (\text{releases}_i - \text{drops}_i)}{\sum_{i \in \tau^{\mathrm{LO}}} \text{releases}_i}
 = 1 - \frac{\text{JNE}}{\text{Total LO releases}}$$
@@ -28,7 +32,7 @@ $$\mathrm{LevelTrans} = \sum_{t} \Ind[\text{level}(t-1) \neq \text{level}(t)]$$
 
 ## Objective Function (Weighted Cost Minimization)
 
-$$\Phi = \alpha(U) \cdot \E[\mathrm{JNE}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]$$
+$$\Phi = \alpha(U) \cdot \E[\mathrm{JNC}] + \beta(U) \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}]$$
 
 Weights adapt to total utilisation $U$:
 
@@ -42,11 +46,11 @@ Weights adapt to total utilisation $U$:
 ## Meaningful Improvement Criteria
 
 ### Criterion 1: Service Preservation
-$$\E[\mathrm{JNE}_k] \leq \E[\mathrm{JNE}_{k-1}]$$
+$$\E[\mathrm{JNC}_k] \leq \E[\mathrm{JNC}_{k-1}]$$
 Adding a level should never increase lost LO work.
 
 ### Criterion 2: Waste Reduction
-$$\E[\mathrm{WastedCPU}_k + \mathrm{JNE}_k] \leq \E[\mathrm{WastedCPU}_{k-1} + \mathrm{JNE}_{k-1}]$$
+$$\E[\mathrm{WastedCPU}_k + \mathrm{JNC}_k] \leq \E[\mathrm{WastedCPU}_{k-1} + \mathrm{JNC}_{k-1}]$$
 Total "bad" work should not increase.
 
 ### Criterion 3: Statistical Improvement
