@@ -93,16 +93,36 @@ class SeverityLadder:
         drop_sets: Length k-1, nested (``drop_sets[x] <= drop_sets[x+1]``);
             ``drop_sets[x]`` is the set of LO-criticality task indices
             abandoned at level x+1 and every deeper level.
+        x_lo: Deepest rung a LO-criticality task may fire. 0 restricts
+            triggering to HI-criticality tasks, which is the classic rule and
+            the only setting under which total JNE is bounded by AMC-RH's.
     """
 
     severities: list[float]
     operating_severities: list[float]
     thresholds: list[list[float]]
     drop_sets: list[set[int]]
+    x_lo: int = 0
 
     @property
     def k(self) -> int:
         return len(self.severities) + 1
+
+    def may_trigger(self, taskset: TaskSet, task_id: int, level: int) -> bool:
+        """Whether ``task_id`` is permitted to fire the rung entering ``level``.
+
+        Two conditions, both from task_model.tex's "Mode Transition Protocol":
+
+        1. The rung must not abandon the task -- a task never demands a level
+           that sheds it, which is what keeps the abandoned set a strict prefix
+           of the criticality order (Corollary 1'(b)).
+        2. A LO-criticality task may only reach rungs at or below ``x_lo``.
+           At ``x_lo = 0`` this is the classic rule: HI-criticality tasks only,
+           and the original JNE containment bound holds.
+        """
+        if task_id in self.drop_sets[level - 1]:
+            return False
+        return taskset.criticality[task_id] == "HI" or level <= self.x_lo
 
 
 def _operating_severities(severities: list[float]) -> list[float]:
@@ -192,6 +212,7 @@ def build_ladder(
         operating_severities=operating,
         thresholds=thresholds,
         drop_sets=drop_sets,
+        x_lo=x_lo,
     )
 
 
@@ -390,7 +411,7 @@ def simulate_multilevel(
             thresholds = ladder.thresholds[target - 1]
             best: Optional[int] = None
             for job in active:
-                if job.criticality != "HI":
+                if not ladder.may_trigger(taskset, job.task_id, target):
                     continue
                 th = thresholds[job.task_id]
                 if math.isinf(th):
@@ -521,7 +542,9 @@ def simulate_multilevel(
                     active.insert(idx, job)
                     if trace is not None:
                         trace.append((now, "release", i))
-                    if crit == "HI":
+                    # With x_lo > 0 a LO-criticality release can also become a
+                    # trigger, so the check is no longer HI-only.
+                    if crit == "HI" or ladder.x_lo > 0:
                         escalate_if_triggered(now)
             heapq.heappush(release_heap, (now + taskset.T[i], i))
 
@@ -541,7 +564,7 @@ def simulate_multilevel(
         if state.level < k - 1:
             thresholds = ladder.thresholds[state.level]
             for job in active:
-                if job.criticality != "HI":
+                if not ladder.may_trigger(taskset, job.task_id, state.level + 1):
                     continue
                 th = thresholds[job.task_id]
                 if math.isinf(th):

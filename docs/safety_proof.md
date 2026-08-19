@@ -272,9 +272,27 @@ Clause 1 gives the HI-criticality obligation; clause 2 gives the retained
 LO-criticality obligation. A task in $S_x$ has no deadline obligation: its jobs
 are abandoned on release and count toward JNE, not LDM. $\square$
 
-**Corollary 3.1 (no LDM).** LDM $= 0$ by construction, so there is no
-JNE-against-LDM trade-off to measure. The scheme trades JNE against *severity
-coverage*, not against missed deadlines.
+**Corollary 3.1 (no LDM among retained tasks).** LDM $= 0$ for every *retained*
+LO-criticality task, by clause 2.
+
+> **The previous statement, "LDM $= 0$ by construction", was too strong.** It
+> reasoned that a task in $S_x$ "has no deadline obligation: its jobs are
+> abandoned on release and count toward JNE, not LDM". That holds for jobs
+> released *after* the rung fires. It fails for the job already in flight when
+> it fires: abandonment is on release, so that job runs to completion, and it
+> can miss. This is the same instantaneous-shedding assumption that carry-in
+> corrects on the interference side, surfacing on the deadline side.
+>
+> Measured over 60 task sets $\times$ 3 seeds at $f_p = 0.2$ (300k ticks): 23
+> LO-criticality deadline misses, **all 23 on tasks in the drop set**, and
+> **zero on retained tasks**. Clause 2 is therefore exactly sound as stated;
+> only the extrapolation to "no LDM at all" was not. The residual is bounded by
+> the same quantity as the carry-in term — at most one in-flight job per shed
+> task per degradation episode.
+
+So the scheme trades JNE against *severity coverage* plus a bounded LDM
+residual on tasks it has already elected to abandon, not against missed
+deadlines for anything it promised to keep.
 
 **Existence.** An admissible set always exists whenever the task set passes
 AMC-rtb, since $S_x = \mathrm{LO}$ reduces clause 1 to the AMC-rtb HI-mode test

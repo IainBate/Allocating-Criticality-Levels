@@ -586,6 +586,29 @@ against overruns two-level AMC cannot detect. The safety consequences are set
 out in the accompanying safety proof; the trade is measured empirically rather
 than settled by argument.
 
+\textbf{Measured status of the mechanism.} The blind spot
+\Cref{sec:ex-blindspot} describes is not an edge case. Across 60 task sets and
+three seeds, at every overrun rate from $f_p = 10^{-3}$ to $f_p = 0.2$,
+\textbf{$87$--$89\%$ of HI-criticality overruns fire no rung at all}: the job
+executes beyond $C_i^{\mathrm{lo}}$ and still completes before
+$R_i^{\mathrm{lo}}$. At $f_p = 0.2$ that is $129{,}874$ undetected overruns out
+of $145{,}769$.
+
+It does not follow that the mechanism pays. Enabling $x_{\mathrm{LO}} = 1$ over
+the same population adds only $0.3\%$ more level entries and $0.3\%$ more JNE,
+and reduces LO-criticality deadline misses by \emph{none}. The reason is that
+clause 2 of \Cref{sec:admissibility} already discharges what the mechanism was
+designed to deliver: a retained LO-criticality task is guaranteed its deadline,
+so it has nothing to be rescued from. Consistently, a retained LO-criticality
+task has a median $87.2\%$ of its deadline still remaining at the instant it
+first becomes eligible to fire a rung, so it essentially never does.
+
+The mechanism therefore has value only where clause 2 is weakened -- where
+lower-ranked \emph{retained} tasks are permitted to miss, giving a third state
+between protected and abandoned -- or in populations whose LO-criticality tasks
+have far less slack than these. Reporting it as an unconditional improvement
+would not be supported by the measurements.
+
 The trigger point for the deepest level, $R_i(\chi_{k-1})$, is written
 $R_{\mathrm{trigger}}$ where the level count is not otherwise relevant; with
 $\chi_{k-1} = 1$ it recovers the classic AMC trigger for full degradation.
@@ -610,9 +633,13 @@ LO-criticality task at $C_i^{\mathrm{lo}}$:
 \end{enumerate}
 
 Clause 2 is what makes LDM (LO jobs that miss their deadline in degraded mode)
-zero by construction for any retained task: there is no
-JNE-against-LDM trade-off to measure, only JNE against how much of the
-severity range is covered without shedding. An admissible set always exists
+zero for any \emph{retained} task. Simulation confirms it exactly: over 60 task
+sets $\times$ 3 seeds at $f_p = 0.2$, all 23 LO-criticality deadline misses fell
+on tasks \emph{in} the drop set and none on a retained task. The residual is
+the counterpart of carry-in on the deadline side -- a job of a shed task
+already in flight when its rung fires is not abandoned, so it runs and may
+miss. Claiming LDM is zero outright, as an earlier version of this analysis
+did, overstates the guarantee by exactly that bounded term. An admissible set always exists
 whenever the task set passes AMC-rtb (\Cref{sec:amc-rtb}): $S_x = \tau^{\mathrm{LO}}$
 reduces clause 1 to the AMC-rtb HI-mode test and vacates clause 2, recovering
 the classic two-level scheme exactly. So the question a drop policy answers is
