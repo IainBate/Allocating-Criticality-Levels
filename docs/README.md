@@ -68,7 +68,8 @@ The primary research plan that outlines the entire project structure:
 
 | File | Description |
 |------|-------------|
-| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes. Written before the revised protocol ran; Task 4.1's core question is now answered (below), Task 4.2 is not |
+| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes. Written before the revised protocol ran; Task 4.1's core question is now answered (below), Task 4.2 has a strong pilot result but no built mechanism yet |
+| `exit_strategy_analysis.md` | **Task 4.2 pilot** - cascade/early-exit opportunity, measured before building or proving a mechanism (same pattern Stage 3 used for drop strategy) |
 
 **Status**:
 - **Task 4.1 (which tasks to drop): answered.** Utilisation-ordered shed-early beats
@@ -76,12 +77,21 @@ The primary research plan that outlines the entire project structure:
   search (`../research/mode_optimization.tex` §"Bounded-Gain Configuration Selection")
   bounds any method's further gain over that default at ≤0.79% — an order of magnitude
   under this study's 5% threshold. No further drop-strategy comparison is planned.
-- **Task 4.2 (exit strategy / hysteresis): still open, and currently blocked.**
-  `safety_proof.md` (Theorem 2 scope note) records that a hysteresis-based exit rule
-  cannot be measured exactly in the current simulator — `ModeChangeProtocol` has no
-  `exit_time()`, only a `should_exit()` predicate, and a timed exit rule was measured to
-  inflate `degraded_ticks` by ~15–20%. Adding `exit_time()` is a prerequisite for this
-  task, not just an unrun experiment.
+- **Task 4.2 (exit strategy): mechanism still not built, but no longer blocked, and now
+  well-motivated.** `exit_strategy_analysis.md` measures — before building or proving
+  anything — how much LO work the current direct-exit-on-idle rule sheds after the
+  triggering evidence has already gone stale. Result: resolved above the study's 5% floor
+  in 8 of 16 `shed_early` cells, growing with utilisation and deadline tightness, reaching
+  15–21% at U=0.9 — the largest exit-related effect found anywhere in this project, an
+  order of magnitude above every entry-side knob already closed. The reframe that made
+  this tractable: for `shed_early` (the adopted policy), this is not a cascade question at
+  all — there is only one drop set, so the only lever is early exit to `L0`, and AMC-RH's
+  early-exit rule (`engine.py`, `AMC_RH.should_exit`) already exists, is already tested,
+  and already has a safety argument. What remains is implementing that rule as a scheduled
+  event in `multilevel.py` (mirroring `entry_time()`'s pattern) and re-measuring the actual
+  paired service-ratio gain, not the diagnostic proxy. General cascade exit for the
+  `progressive` policy remains open and separately harder — see the analysis document's
+  closing sections.
 
 ---
 
