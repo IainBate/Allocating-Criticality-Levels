@@ -781,6 +781,81 @@ increase is large enough that this prior should be checked against the
 combined objective explicitly before the result is presented as an
 unqualified win, not assumed from the weight alone.
 
+\subsubsection{Tempering the churn: a hold-off, and where its sweet spot moves}
+\label{sec:tempered-exit}
+
+The oscillation cost above motivates a tempered exit: leave a degraded level
+once evidence has been continuously clear for \texttt{hold\_off} ticks, rather
+than immediately. Unlike evidence-cleared exit, a hold-off's deadline is a
+\emph{timed} condition, not an event-triggered one, so realising it needed new
+machinery -- an extension of the existing next-event lookahead
+(\texttt{\_next\_evidence\_reappearance}) so the simulation loop cannot skip
+past evidence reappearing between otherwise-scheduled events. Two limits make
+\texttt{exit\_policy="hysteresis"} an exact interpolation between the two
+policies already measured, not merely a variant of them:
+\texttt{hold\_off=0} reproduces \texttt{exit\_policy="amc\_rh"} bit-for-bit,
+and a \texttt{hold\_off} longer than any realistic gap reproduces
+\texttt{exit\_policy="idle"} bit-for-bit -- both verified in
+\texttt{tests/simulation/test\_multilevel.py}, not argued.
+
+\textbf{Safety does not depend on \texttt{hold\_off}, or on the lookahead's
+precision.} $R_i(\chi)$ is a worst-case bound computed under full
+interference, so a task that has not yet crossed it is guaranteed safe under
+full interference from that instant on, regardless of what happens next --
+$\mathrm{natural}(t) = 0$ is not a reasonable proxy for the safe-to-exit
+boundary, it \emph{is} that boundary, exactly. Every exit under
+\texttt{"hysteresis"} is gated on a \emph{fresh} check of this condition at
+the instant it fires, never on the hold-off bookkeeping alone, so an
+imprecise or delayed wake-up can only delay an individually-safe exit, never
+bring one forward into unsafe territory. This is Corollary 3 of the safety
+proof (\texttt{safety\_proof.md}); it needs nothing beyond what Corollary 2
+already established.
+
+A real, paired sweep -- \texttt{exit\_opportunity.hysteresis\_sweep}, not a
+retrospective estimate -- measured \texttt{hold\_off} $\in \{0, 25, 50, 100,
+200, 400, 800, 1600, 3200\}$ ticks against \texttt{"idle"}, shed-early, point
+B, across $U$ and both deadline regimes ($n=16$ task sets, $n=7$ at
+$U=0.9$/tight, $5$ seeds). Both curves -- service-ratio gain and
+level-transition increase -- fall as \texttt{hold\_off} grows, but the
+transition increase falls faster, which is what makes an intermediate
+\texttt{hold\_off} worth choosing rather than either extreme. Anchoring on the
+smallest \texttt{hold\_off} that caps the level-transition increase at
+$\leq 10\%$:
+
+\begin{table}[h]
+\centering
+\caption{Smallest hold\_off capping the level-transition increase at 10\%, and the fraction of the hold\_off=0 service-ratio gain retained at that point.}
+\label{tab:tempered-sweet-spot}
+\begin{tabular}{llrr}
+\toprule
+$U$ & Regime & hold\_off for LT $\leq 10\%$ & Service-ratio gain retained \\
+\midrule
+0.60 & implicit & 400 & 28.1\% \\
+0.60 & tight & 200 & 39.2\% \\
+0.70 & implicit & 400 & 31.5\% \\
+0.70 & tight & 200 & 43.4\% \\
+0.80 & implicit & 400 & 35.8\% \\
+0.80 & tight & 400 & 19.6\% \\
+\textbf{0.90} & \textbf{implicit} & \textbf{1600} & \textbf{10.5\%} \\
+\textbf{0.90} & \textbf{tight} & \textbf{800} & \textbf{10.5\%} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\textbf{The sweet spot moves with utilisation, and not in the forgiving
+direction.} At $U=0.6$--$0.7$ a modest hold-off ($200$--$400$) caps
+oscillation cheaply, keeping $28$--$43\%$ of the gain. At $U=0.9$ the same
+$10\%$ cap needs a hold-off $2$--$8\times$ larger and keeps only
+$\approx 10.5\%$ -- churn is denser at high utilisation (baseline
+level-transition counts roughly double from $U=0.6$ to $U=0.9$ in the same
+regime), so a fixed hold-off suppresses proportionally less of it. There is
+no single hold-off that is simultaneously cheap and effective across the
+whole grid tested; any deployed value is a choice about which utilisation
+regime to favour, not a free parameter fixed once. An interactive rendering
+of the full sweep (both metrics, both regimes, all four $U$ values) is
+available alongside this project's supporting documentation
+(\texttt{docs/exit\_strategy\_analysis.md}, ``Result 4'').
+
 \textbf{Progressive: cascade adds almost nothing beyond full exit alone.} The
 diagnostic upper bound (before the mechanism existed) suggested progressive's
 opportunity might exceed shed\_early's. Decomposing it by what kind of exit
