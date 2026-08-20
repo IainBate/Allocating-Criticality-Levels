@@ -396,6 +396,13 @@ class MultiLevelResult:
     duration: int = 0
     budget_overruns: int = 0
 
+    #: Populated only when `simulate_multilevel(measure_cascade_opportunity=True)`.
+    #: See `_natural_level` for the definition of "justified".
+    overdegraded_ticks: int = 0
+    overdegraded_level_ticks: int = 0
+    overdegraded_events: int = 0
+    max_overdegraded_gap: int = 0
+
     @property
     def total_hi_releases(self) -> int:
         return sum(self.hi_releases_per_task)
@@ -403,6 +410,33 @@ class MultiLevelResult:
     @property
     def total_lo_releases(self) -> int:
         return sum(self.lo_releases_per_task)
+
+    @property
+    def overdegraded_pct(self) -> float:
+        """% of time at level >= 1 spent deeper than currently active evidence
+        justifies -- i.e. `state.level > natural_level` (see `_natural_level`).
+
+        An UPPER bound on what an instant, unconditionally-safe cascade exit
+        could recover, not an achievable or safety-checked gain: it assumes
+        demoting the moment justifying evidence disappears is free and safe,
+        which is exactly the question a cascade-exit design would still have
+        to settle. Zero unless `measure_cascade_opportunity=True` was passed
+        to `simulate_multilevel`.
+        """
+        degraded = sum(self.level_ticks[1:]) if self.level_ticks else 0
+        return 100.0 * self.overdegraded_ticks / degraded if degraded else 0.0
+
+    @property
+    def overdegraded_level_pct(self) -> float:
+        """Depth-weighted `overdegraded_pct`: unjustified level-ticks as a % of
+        total accumulated level-depth-time (sum of level x level_ticks[level]).
+
+        Distinguishes "over-degraded a little, often" from "a lot, rarely" --
+        `overdegraded_pct` alone cannot, since it does not weight by how many
+        levels deep the gap was.
+        """
+        depth = sum(x * t for x, t in enumerate(self.level_ticks))
+        return 100.0 * self.overdegraded_level_ticks / depth if depth else 0.0
 
 
 def _draw_exec_time(rng: np.random.Generator, taskset: TaskSet, i: int, hi_behaviour: bool) -> int:
