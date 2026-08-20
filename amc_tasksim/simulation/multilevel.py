@@ -720,24 +720,44 @@ def simulate_multilevel(
                 trace.append((now, f"level_{target}", -1))
 
     def exit_if_idle(now: int) -> None:
-        """Exit to L0, on idle always, and additionally on cleared evidence
-        under `exit_policy="amc_rh"` -- see MultiLevelResult / the module
-        docstring's "Exit policy" note. Only ever exits straight to L0: a
-        partial demotion to an intermediate level is a different, still-open
-        safety question (safety_proof.md, "Corollary: Evidence-Cleared Exit
-        is Safe" -- scoped explicitly to full exit, not partial).
+        """Exit to L0, on idle always, plus one of two additional rules --
+        see MultiLevelResult / the module docstring's "Exit policy" note.
+        Only ever exits straight to L0: a partial demotion to an intermediate
+        level is a different, still-open safety question (safety_proof.md,
+        "Corollary 2: Evidence-Cleared Exit Is Safe" -- scoped explicitly to
+        full exit, not partial).
+
+        `exit_policy="hysteresis"` is gated on a FRESH `_natural_level` check
+        at the instant it actually decides to exit, same as "amc_rh" -- the
+        `evidence_clear_since` bookkeeping only decides *when* to make that
+        attempt, never substitutes for checking it. This is what makes the
+        policy safe independent of how precisely `_next_evidence_reappearance`
+        tracks reappearance: a stale or missed wake-up can make the hold-off
+        less exact (fire later, or credit time across an uncounted blip),
+        never cause an exit while evidence is not, at that exact instant,
+        actually clear.
         """
-        nonlocal level_entered_at
+        nonlocal level_entered_at, evidence_clear_since
         if state.level == 0:
             return
         exit_now = not active
-        if not exit_now and exit_policy == "amc_rh":
-            exit_now = _natural_level(ladder, taskset, active, state.level, now) == 0
+        if not exit_now and exit_policy in ("amc_rh", "hysteresis"):
+            nat = _natural_level(ladder, taskset, active, state.level, now)
+            if nat == 0:
+                if evidence_clear_since is None:
+                    evidence_clear_since = now
+                if exit_policy == "amc_rh":
+                    exit_now = True
+                else:
+                    exit_now = now - evidence_clear_since >= hold_off
+            else:
+                evidence_clear_since = None
         if exit_now:
             result.level_ticks[state.level] += now - level_entered_at
             result.level_trans += 1
             state.level = 0
             level_entered_at = now
+            evidence_clear_since = None
             if trace is not None:
                 trace.append((now, "exit_degraded", -1))
 
