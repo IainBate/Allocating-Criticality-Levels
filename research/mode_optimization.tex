@@ -704,7 +704,13 @@ queue to idle. \texttt{simulation.multilevel} now implements this as
 \texttt{AMC\_RH} at $k=2$
 (\texttt{test\_k2\_full\_drop\_amc\_rh\_exit\_reproduces\_amc\_rh\_exactly}), and
 proven safe -- scoped explicitly to full exit only, not partial demotion -- as
-Corollary 2 of the safety proof.
+Corollary 2 of the safety proof.\reviewnote{Corollary 2 (\texttt{safety\_proof.md}) rests on
+$\mathrm{natural}(t){=}0$ being the \emph{exact} safe-to-exit boundary, not an approximation of
+it -- the argument is that $R_i(\chi)$ is a worst-case bound under full interference, so a task
+that hasn't crossed it is already safe under full interference regardless of what happens next.
+Please check that reasoning independently: it is new this pass, produced by the same process
+that also produced (and had to retract) the whole-run TiD overclaim flagged further down. If it
+holds, everything downstream in this section inherits from it.}
 
 \begin{table}[h]
 \centering
