@@ -325,24 +325,51 @@ Select k that maximizes objective while keeping overhead acceptable
 
 ## 5. Key Research Questions (Summary)
 
+> **Status.** The answers below were the working hypotheses at project inception.
+> Several are now known wrong or answered differently by the revised protocol
+> (`../research/mode_optimization.tex`). Corrections are appended rather than silently
+> edited in, per this project's convention (see `task_model.tex`, `safety_proof.md`).
+
 ### Primary Questions
 1. **When is it meaningful to introduce additional modes?**
    - When the reduction in wasted CPU/service loss justifies complexity overhead
-   
+   - *Standing, refined*: additional *modes* (k) turned out not to be the lever at all
+     (see Q2). The meaningful choice is drop *policy* (shed-early vs. progressive) and
+     *operating point* — Stage 2's regime map shows these alone produce +2.4% to +27.3%
+     over two-level AMC-RA.
+
 2. **How many modes are meaningful?**
-   - Likely 2-4; diminishing returns beyond that
+   - ~~Likely 2-4; diminishing returns beyond that~~
+   - *Corrected*: under the adopted shed-early policy, $k$ is vacuous — results agree to
+     six decimal places across $k \in \{2,3,4,5\}$ (`mode_optimization.md` §"Superseded").
+     There is no "how many" question left to answer for this policy.
 
 3. **How do we allocate low-criticality tasks to modes?**
-   - Priority-based drop is simplest and most natural for FPPS
+   - ~~Priority-based drop is simplest and most natural for FPPS~~
+   - *Corrected*: priority-based dropping sheds 73–78% more than necessary. The adopted
+     default is utilisation-ordered shed-early (`scheduling/drop_sets.py`), and Stage 3
+     bounds any alternative's further gain at ≤0.79%.
 
 4. **How do we assign R_level_X to highest criticality tasks?**
-   - Monotonic sequence ≤ R_trigger; optimal spacing needs research
+   - ~~Monotonic sequence ≤ R_trigger; optimal spacing needs research~~
+   - *Corrected*: the research ran (Stage 0/1 structural pilot) and found spacing has zero
+     effect on the drop set under shed-early. Monotonic sequence is still required for the
+     safety proof (`safety_proof.md` ladder properties), but there is no spacing to
+     optimise.
 
 5. **Does it make sense to assign R_level_X to other tasks?**
    - Later phase - potentially but adds complexity
+   - *Standing, partially addressed*: `task_model.tex`'s "Mode Transition Protocol"
+     extension lets LO-criticality tasks trigger a rung too; `safety_proof.md`'s
+     Corollary 1' covers the safety consequences (graded, not full containment). Not
+     revisited as an optimisation target.
 
 6. **Can exit be staged?**
-   - Yes, with hysteresis providing smooth transitions
+   - ~~Yes, with hysteresis providing smooth transitions~~
+   - *Corrected — this was asserted, not researched*: Task 4.2 (exit strategy) never ran,
+     and is currently blocked: `ModeChangeProtocol` has no `exit_time()`, so a hysteresis
+     rule cannot be measured exactly in the simulator (measured to inflate `degraded_ticks`
+     by ~15–20% when approximated). Still genuinely open.
 
 ### Secondary Questions
 - Does multi-level scheduling reduce oscillation between modes?
