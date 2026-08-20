@@ -5,7 +5,7 @@
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{cleveref}
-\usepackage[textsize=small,disable=false]{todonotes}
+\usepackage{xcolor}
 
 \geometry{margin=1in}
 \hypersetup{colorlinks=true, urlcolor=blue}
@@ -13,9 +13,14 @@
 \input{macros}
 
 % --- Review-pass markup, added for a human review of this draft. Strip this
-% block and every \reviewnote/\decisionnote call before final submission. ---
-\newcommand{\reviewnote}[1]{\todo[inline,color=red!12,bordercolor=red!70!black]{\textbf{REVIEW --} #1}}
-\newcommand{\decisionnote}[1]{\todo[inline,color=blue!8,bordercolor=blue!60!black]{\textbf{DECISION --} #1}}
+% block and every \reviewnote/\decisionnote call before final submission.
+% Plain fcolorbox/parbox, not todonotes: todonotes' inline notes render as
+% empty space in this document for reasons not worth chasing further, so this
+% avoids the dependency rather than debugging it. ---
+\newcommand{\reviewnote}[1]{\par\noindent\fcolorbox{red!70!black}{red!8}{%
+  \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\textbf{REVIEW --} #1}}\par\smallskip}
+\newcommand{\decisionnote}[1]{\par\noindent\fcolorbox{blue!60!black}{blue!6}{%
+  \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\textbf{DECISION --} #1}}\par\smallskip}
 
 \title{Choosing an Optimisation Method for Severity-Ladder Design}
 \author{}
