@@ -277,6 +277,12 @@ Select k that maximizes objective while keeping overhead acceptable
 
 ### Phase 5: Implementation & Validation
 
+> **Status.** Tasks 5.1 and 5.3 are built, not just planned: the k-level engine
+> (`amc_tasksim/simulation/multilevel.py`) and the paired sweep framework
+> (`amc_tasksim/experiments/contract.py`, `sweep.py`) ran all four stages of the revised
+> protocol. Task 5.2's validation suite is only partially confirmed against the specific
+> checks below — see `docs/README.md`'s Phase 5 status note.
+
 #### Task 5.1: Core Multi-Level Protocol
 **Implementation Tasks**:
 1. Extend `ModeChangeProtocol` interface to support multiple levels
