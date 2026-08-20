@@ -465,6 +465,16 @@ class MultiLevelResult:
         exp = self.lo_expected
         return 100.0 * self.overdegraded_jne / exp if exp else 0.0
 
+    @property
+    def overdegraded_jne_full_exit_pct(self) -> float:
+        """`overdegraded_jne_full_exit` as a % of `lo_expected` -- the part of
+        overdegraded_jne_pct that a safe, already-implemented full exit alone
+        recovers. `overdegraded_jne_pct - overdegraded_jne_full_exit_pct` is
+        what a real cascade mechanism could additionally recover, at most.
+        """
+        exp = self.lo_expected
+        return 100.0 * self.overdegraded_jne_full_exit / exp if exp else 0.0
+
 
 def _natural_level(
     ladder: SeverityLadder,
