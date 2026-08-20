@@ -133,7 +133,10 @@ open. See the annotated table above for what changed and why.
 
 ## Proof Framework for Remaining Questions
 
-### For O.1 (Strict Improvement)
+Only O.3a still lacks any answer, empirical or formal (see Summary). The frameworks below
+are kept for the record, annotated with why each stopped being the live plan.
+
+### For O.1 / O.1a (Strict Improvement)
 ```
 Goal: E[JNE_k] ≤ E[JNE_{k-1}]
 
@@ -143,8 +146,11 @@ Approach:
 3. Show adding a level splits the integral into smaller pieces
 4. Apply Jensen's inequality to convex cost function
 ```
+Not pursued: the regime map answered the practical question empirically (O.1) before this
+was attempted, and $k$ turned out not to be the lever that matters (O.2) — so a proof
+indexed on $k$ would be proving the wrong variable.
 
-### For O.2 (Optimal Trigger Spacing)
+### For O.2 (Optimal Trigger Spacing) — moot, kept for the record
 ```
 Goal: argmin_{R_1≤...≤R_{k-1}} Φ(R_1,...,R_{k-1})
 
@@ -153,8 +159,11 @@ Approach:
 2. Use dynamic programming for small k (k ≤ 4)
 3. For larger k, apply convex optimization if objective is concave
 ```
+Superseded: there is no argmin to find. Φ does not vary with trigger spacing under the
+adopted shed-early policy (O.2), so this framework solves a problem that does not exist
+for the policy actually adopted.
 
-### For O.3 (Competitive Ratio)
+### For O.3 / O.3a (Competitive Ratio)
 ```
 Goal: JNE_greedy / JNE_optimal ≤ c for some constant c
 
@@ -163,6 +172,9 @@ Approach:
 2. Use potential function method to compare states
 3. Bound the difference in dropped tasks at each level transition
 ```
+Still the right approach for O.3a specifically. Its urgency is lower than when written,
+since Stage 3's exhaustive bound already shows $c$ is close to 1 (gain $\leq 0.79\%$) at
+every point tested — a formal proof would confirm a small number, not discover a large one.
 
 ## Implementation Verification Checklist
 
