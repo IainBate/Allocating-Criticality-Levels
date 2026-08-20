@@ -310,6 +310,105 @@ def test_full_exit_is_a_no_op_at_k2_when_gap_is_never_partial(tasksets):
 
 
 # ---------------------------------------------------------------------------
+# exit_policy="hysteresis": exact equivalences at its two limits
+# ---------------------------------------------------------------------------
+
+
+def test_hysteresis_with_zero_hold_off_reproduces_amc_rh_exactly(tasksets):
+    """hold_off=0 means "exit the instant evidence is clear", which is what
+    exit_policy="amc_rh" already does -- not an approximation, the same
+    decision at every event, so results must be bit-identical."""
+    mismatches = 0
+    checked = 0
+    for ts in tasksets[:8]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        assert ladder is not None
+        for seed in range(4):
+            amc_rh = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                          exit_policy="amc_rh")
+            hyst = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="hysteresis", hold_off=0)
+            checked += 1
+            for field_name in FIELDS + ["level_trans", "wasted_cpu", "lo_completed"]:
+                if getattr(amc_rh, field_name) != getattr(hyst, field_name):
+                    mismatches += 1
+    assert checked == 8 * 4
+    assert mismatches == 0
+
+
+def test_hysteresis_with_huge_hold_off_reproduces_idle_exactly(tasksets):
+    """A hold_off longer than any realistic exit-to-reentry gap means the
+    hold-off deadline is never reached before the queue would idle on its own
+    -- exit_now falls back to `not active` every time, exactly today's
+    shipped behaviour, not an approximation of it."""
+    mismatches = 0
+    checked = 0
+    for ts in tasksets[:8]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        assert ladder is not None
+        for seed in range(4):
+            idle = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="idle")
+            hyst = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="hysteresis", hold_off=DURATION)
+            checked += 1
+            for field_name in FIELDS + ["level_trans", "wasted_cpu", "lo_completed"]:
+                if getattr(idle, field_name) != getattr(hyst, field_name):
+                    mismatches += 1
+    assert checked == 8 * 4
+    assert mismatches == 0
+
+
+def test_hysteresis_tid_is_bracketed_by_amc_rh_and_idle_on_this_population(tasksets):
+    """Empirical check, not a proven ordering across a whole run (same caveat
+    as the amc_rh-vs-idle TiD test: admitting a job idle/a shorter hold_off
+    would have dropped can, via priority interference, change a later HI
+    job's inherited busy_start and send the two runs' trajectories in
+    different directions after they first diverge). Within this population,
+    tempering by a mid-range hold_off should land between the two policies it
+    interpolates."""
+    for ts in tasksets[:6]:
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        assert ladder is not None
+        for seed in range(3):
+            idle = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="idle")
+            amc_rh = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                          exit_policy="amc_rh")
+            hyst = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="hysteresis", hold_off=500)
+            assert amc_rh.tid <= hyst.tid <= idle.tid
+
+
+def test_hysteresis_level_trans_is_bracketed_between_amc_rh_and_idle(tasksets):
+    for ts in tasksets[:6]:
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        assert ladder is not None
+        for seed in range(3):
+            idle = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="idle")
+            amc_rh = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                          exit_policy="amc_rh")
+            hyst = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="hysteresis", hold_off=500)
+            assert idle.level_trans <= hyst.level_trans <= amc_rh.level_trans
+
+
+def test_hysteresis_no_progress_warning_never_fires(tasksets):
+    """Regression guard for the next_t additions: a bug there (e.g. scheduling
+    a candidate <= now) would trip engine.py-style "no progress" warnings."""
+    import warnings as warnings_module
+    for ts in tasksets[:4]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        assert ladder is not None
+        for hold_off in [0, 1, 50, 10_000]:
+            with warnings_module.catch_warnings():
+                warnings_module.simplefilter("error")
+                simulate_multilevel(ts, ladder, duration=DURATION, seed=0, fp=FP,
+                                     exit_policy="hysteresis", hold_off=hold_off)
+
+
+# ---------------------------------------------------------------------------
 # The admissible policy: never worse than full drop, genuinely different
 # ---------------------------------------------------------------------------
 
