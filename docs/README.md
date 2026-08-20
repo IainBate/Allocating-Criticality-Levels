@@ -68,12 +68,20 @@ The primary research plan that outlines the entire project structure:
 
 | File | Description |
 |------|-------------|
-| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes |
+| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes. Written before the revised protocol ran; Task 4.1's core question is now answered (below), Task 4.2 is not |
 
-**Key questions addressed**:
-- Static vs dynamic task assignment to levels
-- Priority-based, utilization-based, deadline-based, proportional, and hybrid drop strategies
-- Exit strategy options (direct, cascade, hysteresis, adaptive)
+**Status**:
+- **Task 4.1 (which tasks to drop): answered.** Utilisation-ordered shed-early beats
+  priority-based dropping by 73–78% (`scheduling/drop_sets.py`), and Stage 3's exhaustive
+  search (`../research/mode_optimization.tex` §"Bounded-Gain Configuration Selection")
+  bounds any method's further gain over that default at ≤0.79% — an order of magnitude
+  under this study's 5% threshold. No further drop-strategy comparison is planned.
+- **Task 4.2 (exit strategy / hysteresis): still open, and currently blocked.**
+  `safety_proof.md` (Theorem 2 scope note) records that a hysteresis-based exit rule
+  cannot be measured exactly in the current simulator — `ModeChangeProtocol` has no
+  `exit_time()`, only a `should_exit()` predicate, and a timed exit rule was measured to
+  inflate `degraded_ticks` by ~15–20%. Adding `exit_time()` is a prerequisite for this
+  task, not just an unrun experiment.
 
 ---
 
