@@ -382,14 +382,18 @@ Select k that maximizes objective while keeping overhead acceptable
 
 6. **Can exit be staged?**
    - ~~Yes, with hysteresis providing smooth transitions~~
-   - *Corrected, then updated*: this was originally asserted rather than researched, and
-     the general hysteresis/cascade mechanism is still not built (`ModeChangeProtocol` has
-     no `exit_time()`; a hysteresis rule cannot be measured exactly without one). But a
-     pilot (`docs/exit_strategy_analysis.md`) now shows a large, well-resolved effect from
-     just the simplest form of staging — exiting when evidence clears rather than waiting
-     for the queue to idle — for which the mechanism (AMC-RH's exit rule) already exists.
-     "Staged" in the sense of intermediate-level cascade remains open; "staged" in the
-     sense of earlier, evidence-based exit no longer is.
+   - *Corrected, then answered*: this was originally asserted rather than researched.
+     "Staged" in the sense of earlier, evidence-based exit (no intermediate level, just
+     leaving degraded mode sooner) is now built, proven safe, and measured — +2% to +27%
+     service ratio, at a real cost of 20–87% more mode changes
+     (`docs/exit_strategy_analysis.md`). "Staged" in the sense of genuine intermediate-level
+     cascade is closed the other way, with evidence rather than by continued absence of
+     research: decomposing the same measurement shows a real cascade mechanism could add at
+     most 0.04–0.86 percentage points beyond full exit alone, so it is not being built.
+     Hysteresis (a *timed* hold-off, as originally meant here) remains genuinely
+     unbuilt — `ModeChangeProtocol` still has no `exit_time()` — and is now a lower
+     priority than when this question was written, given how much larger the plain
+     evidence-cleared effect turned out to be.
 
 ### Secondary Questions
 - Does multi-level scheduling reduce oscillation between modes?
