@@ -247,14 +247,16 @@ Select k that maximizes objective while keeping overhead acceptable
 > configuration at ≤0.79%, an order of magnitude under this study's 5% threshold — closing
 > the comparison without needing to run the strategies enumerated below individually.
 > Priority-based dropping specifically is *not* competitive (73–78% more shedding than
-> necessary), which corrects §5 Q3 below. Task 4.2 (exit strategy) has a strong pilot
-> result now (`docs/exit_strategy_analysis.md`): the current direct-exit-on-idle rule
-> sheds 15–21% more LO work than live evidence justifies at U=0.9, resolved above the 5%
-> floor in 8 of 16 cells — the largest exit-related effect this project has measured. For
-> the adopted `shed_early` policy this turns out not to be a cascade question at all (one
-> drop set, so the only lever is early exit to L0), and AMC-RH's early-exit rule already
-> exists and is already proven — see that document's "The reframe" section. What remains
-> is building it as a scheduled event in `multilevel.py` and re-measuring the actual gain.
+> necessary), which corrects §5 Q3 below. Task 4.2 (exit strategy) is now measured, not
+> just piloted (`docs/exit_strategy_analysis.md`, `mode_optimization.tex` §"Stage 5"):
+> `exit_policy="amc_rh"` in `simulation.multilevel` is proven safe for full exit
+> (`safety_proof.md` Corollary 2) and gives +2% to +27% service ratio over today's
+> idle-only exit, 11 of 16 cells practically significant — the largest exit-related effect
+> this project has measured. It costs 20–87% more mode changes, tracked and reported
+> alongside the gain rather than netted against it (no validated `Φ` implementation
+> exists to net them against). Separately, `progressive`'s cascade question is closed with
+> evidence: a real cascade mechanism could add at most 0.04–0.86 percentage points beyond
+> full exit alone — not worth building.
 
 #### Task 4.1: LO Task Assignment to Criticality Levels
 **Objective**: Determine optimal assignment of low-criticality tasks to degradation levels.
