@@ -146,18 +146,25 @@ Phase 5: Implementation & Validation
 
 ### Key Metrics
 
+The primary metric is now **JNC** (Jobs Not Completed), not JNE — see
+`metrics_objective.md` for why: JNE alone is blind to jobs abandoned via deadline
+termination rather than at a level transition.
+
 | Metric | Formula | Interpretation |
 |--------|---------|----------------|
-| **JNE** | LO jobs dropped in degraded mode | Lost low-criticality work |
+| **JNC** | Exp − Comp (released but not completed) | Primary metric: LO jobs lost by any means, dropped or terminated |
+| **JNE** | LO jobs dropped in degraded mode | Component of JNC: lost on abandonment at a level transition |
 | **TiD** | Time fraction in degraded mode | System degradation duration |
 | **WastedCPU** | Executed but abandoned LO work | CPU cycles wasted |
-| **ServiceRatio** | (LO completions) / (LO releases) | Fraction of LO service preserved |
+| **LevelTrans** | Count of level transitions (any direction) | Oscillation within the degraded levels, invisible to TiD/NiD |
+| **ServiceRatio** | Comp / Exp = 1 − JNC/Exp | Fraction of LO service preserved |
 
 ### Objective Function
 
-Φ = α·JNE + β·TiD + γ·WastedCPU
+Φ = α(U)·JNC + β(U)·TiD + γ·WastedCPU + δ·LevelTrans
 
-Weights adapt to utilisation U for balanced optimization.
+α, β adapt to utilisation U; γ, δ are fixed small weights. See `metrics_objective.md`
+"Proposed Objective: Hybrid Approach" for why LevelTrans is included alongside TiD.
 
 ---
 
