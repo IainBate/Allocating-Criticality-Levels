@@ -577,6 +577,7 @@ def simulate_multilevel(
     trace: Optional[list[tuple]] = None,
     measure_cascade_opportunity: bool = False,
     exit_policy: str = "idle",
+    hold_off: int = 0,
 ) -> MultiLevelResult:
     """Simulate a task set under the k-level severity-ladder scheme.
 
