@@ -616,11 +616,28 @@ def simulate_multilevel(
             corollary for why it is safe: it only ever exits straight to L0,
             never to an intermediate level, so it inherits AMC-RH's own
             existing safety argument rather than needing a new one.
+            ``"hysteresis"``: exit to L0 once evidence has been continuously
+            clear for at least `hold_off` ticks, tempering "amc_rh"'s
+            immediate exit to trade back some of its oscillation increase for
+            some of its service-ratio gain -- see `docs/exit_strategy_analysis.md`
+            for the retrospective data motivating this, and `safety_proof.md`'s
+            tempered-exit corollary for why it is safe regardless of
+            `hold_off` or of any imprecision in *when* the hold-off's own
+            deadline is detected: the actual exit is always gated on a fresh
+            `_natural_level` check at the instant it fires, not on the
+            hold-off bookkeeping, so a missed wake-up can only delay an exit
+            (still safe), never cause an early one.
+        hold_off: Minimum ticks evidence must have been continuously clear
+            before `exit_policy="hysteresis"` will exit. Ignored otherwise.
+            `hold_off=0` is exactly `exit_policy="amc_rh"`; a `hold_off`
+            larger than any realistic gap is exactly `exit_policy="idle"` --
+            both are exact equivalences, not approximations, verified in
+            `tests/simulation/test_multilevel.py`.
 
     Returns:
         A :class:`MultiLevelResult`.
     """
-    if exit_policy not in ("idle", "amc_rh"):
+    if exit_policy not in ("idle", "amc_rh", "hysteresis"):
         raise ValueError(f"Unknown exit_policy: {exit_policy!r}")
     if not taskset.priority:
         from amc_tasksim.scheduling.priority import assign_deadline_monotonic
