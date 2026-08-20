@@ -331,14 +331,37 @@ unconditional LO-deadline corollary (termination at the job's own deadline,
 checked per-job regardless of level history) is untouched by the same
 argument. $\square$
 
-*Proof, TiD does not increase*: $\mathrm{active} = \emptyset \implies
-\mathrm{natural}(t) = 0$ trivially (no active job, so no active job can carry
-live evidence). So every idle instant is also an evidence-cleared instant, and
-the evidence-cleared exit condition can only fire at or before the idle exit
-instant on the same arrival sequence and execution times. Summing over the
-run, $\mathrm{TiD}_{\text{evidence-cleared}} \leq \mathrm{TiD}_{\text{idle}}$.
-$\square$ (Empirically confirmed, not merely a corollary of the proof:
-`test_amc_rh_exit_policy_never_stays_degraded_longer_than_idle_exit`.)
+*Proof, per-excursion, and why it does not extend to the whole run*:
+$\mathrm{active} = \emptyset \implies \mathrm{natural}(t) = 0$ trivially (no
+active job, so no active job can carry live evidence). So every idle instant
+is also an evidence-cleared instant, and — *for a single excursion, up to the
+first instant the two policies' admission decisions differ* — the
+evidence-cleared exit condition fires at or before the idle exit instant on
+the same realised trajectory. $\square$ for that excursion.
+
+That divergence instant is exactly where the argument stops, and it is real,
+not a formality: the two policies can only differ in which LO releases they
+admit after evidence-cleared exit leaves early. An admitted LO job of higher
+priority than a subsequent HI-criticality task can be queued ahead of it,
+pulling that HI task's *inherited* busy-period start earlier — the same
+inheritance rule Appendix B of the AMC-RH paper specifies, implemented at
+`multilevel.py`'s release site (`job.busy_start = ... active[idx-1].busy_start`).
+An earlier busy-period start means that HI task's own threshold is reached
+earlier in absolute time, which can trigger an *additional* escalation the
+idle-exit run — having dropped that LO job, and so never queued it ahead of
+the HI task — would not have had on the same seed. After that point the two
+runs are no longer comparable trajectory-for-trajectory, so
+$\mathrm{TiD}_{\text{evidence-cleared}} \leq \mathrm{TiD}_{\text{idle}}$ over
+a whole run is **not proven**, and is not claimed here. It does not need to
+be: nothing in the safety argument above depends on it — Theorem 1 protects
+HI deadlines at whatever levels either run visits, however many, and the
+LO-deadline corollary is unconditional regardless. Net TiD, service ratio, and
+level-transition count across a whole run are therefore reported as *measured*
+quantities (`docs/exit_strategy_analysis.md`, `exit_opportunity.early_exit_trial`),
+not derived from this proof — the same discipline Theorem 2 already applies to
+TiD at levels other than the deepest. `test_amc_rh_exit_policy_does_not_increase_tid_on_this_population`
+confirms the common case holds on the tested population; that is evidence, not
+a corollary of this proof.
 
 > **Scope — this does not cover partial demotion.** The proof above depends on
 > $L_0$ specifically: it is the one level whose rule for future releases (none)
