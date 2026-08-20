@@ -255,11 +255,22 @@ def test_k2_full_drop_amc_rh_exit_reproduces_amc_rh_exactly(tasksets):
     assert mismatches == 0
 
 
-def test_amc_rh_exit_policy_never_stays_degraded_longer_than_idle_exit(tasksets):
-    """Sanity check on the direction of the effect: exiting on cleared
-    evidence can only exit sooner than waiting for the queue to idle, never
-    later, so TiD under "amc_rh" must never exceed TiD under "idle" for the
-    same task set, ladder and seed."""
+def test_amc_rh_exit_policy_does_not_increase_tid_on_this_population(tasksets):
+    """Empirical check, NOT a claim this is a proven universal law -- it isn't.
+
+    Within a single degraded excursion, evidence-cleared exit's condition is
+    weaker than idle's (active=[] implies natural_level=0, never the reverse),
+    so it fires at or before idle's exit *for that excursion*. But admitting a
+    LO job idle would have dropped can, via priority interference, pull a
+    later HI job's inherited busy_start earlier and trigger an *additional*
+    escalation idle-exit's run would not have had -- the two runs diverge
+    after the first differential admission decision, so a whole-run TiD
+    comparison is not covered by the proof (safety_proof.md, Corollary 2's
+    scope note). Safety (HI deadlines, no late LO completion) does not depend
+    on this either way. This test records that the common case holds on the
+    tested population; a future failure here is new information, not
+    necessarily a bug.
+    """
     for ts in tasksets[:6]:
         ladder = build_ladder(ts, [0.0], drop_policy="full")
         assert ladder is not None
