@@ -396,16 +396,18 @@ def test_hysteresis_level_trans_is_bracketed_between_amc_rh_and_idle(tasksets):
 
 def test_hysteresis_no_progress_warning_never_fires(tasksets):
     """Regression guard for the next_t additions: a bug there (e.g. scheduling
-    a candidate <= now) would trip engine.py-style "no progress" warnings."""
+    a candidate <= now) would trip the "made no progress" warning."""
     import warnings as warnings_module
     for ts in tasksets[:4]:
         ladder = build_ladder(ts, [0.0, 0.3])
         assert ladder is not None
         for hold_off in [0, 1, 50, 10_000]:
-            with warnings_module.catch_warnings():
-                warnings_module.simplefilter("error")
+            with warnings_module.catch_warnings(record=True) as caught:
+                warnings_module.simplefilter("always")
                 simulate_multilevel(ts, ladder, duration=DURATION, seed=0, fp=FP,
                                      exit_policy="hysteresis", hold_off=hold_off)
+            assert not any("no progress" in str(w.message) for w in caught), \
+                [str(w.message) for w in caught]
 
 
 # ---------------------------------------------------------------------------
