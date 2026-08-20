@@ -777,6 +777,9 @@ def simulate_multilevel(
                     result.max_overdegraded_gap = gap
                 if not was_overdegraded:
                     result.overdegraded_events += 1
+                    if trace is not None:
+                        n_hi = sum(1 for j in active if j.criticality == "HI")
+                        trace.append((now, "overdegraded_start", len(active) - n_hi))
                 was_overdegraded = True
             else:
                 was_overdegraded = False
