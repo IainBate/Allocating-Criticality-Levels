@@ -917,6 +917,23 @@ def simulate_multilevel(
                 if expiry < next_t:
                     next_t = expiry
 
+        if exit_policy == "hysteresis" and state.level > 0:
+            # Two candidates, for the two ways the hold-off's own deadline can
+            # be reached: the deadline itself, if a streak is already running,
+            # and the next instant evidence could reappear (breaking a
+            # streak, or starting the countdown if none is running yet) --
+            # without this second candidate the loop could skip past a blip
+            # between otherwise-scheduled events. Neither is load-bearing for
+            # safety (the fresh check in exit_if_idle is); both are for making
+            # `hold_off` mean what it says. See `_next_evidence_reappearance`.
+            if evidence_clear_since is not None:
+                deadline = evidence_clear_since + hold_off
+                if deadline < next_t:
+                    next_t = deadline
+            reappear = _next_evidence_reappearance(ladder, taskset, active, now)
+            if reappear is not None and reappear < next_t:
+                next_t = reappear
+
         if next_t <= now:
             warnings.warn(f"simulation made no progress at t={now}; forcing advance", stacklevel=2)
             next_t = now + 1
