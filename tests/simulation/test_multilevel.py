@@ -557,3 +557,5 @@ def test_overdegraded_metrics_are_internally_consistent(tasksets):
         assert 0 <= r.overdegraded_level_pct <= 100.0
         assert r.max_overdegraded_gap <= ladder.k - 1
         assert (r.overdegraded_events == 0) == (r.overdegraded_ticks == 0)
+        assert 0 <= r.overdegraded_jne <= r.jne
+        assert 0 <= r.overdegraded_jne_pct <= 100.0
