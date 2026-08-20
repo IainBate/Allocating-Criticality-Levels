@@ -514,6 +514,45 @@ def _natural_level(
     return 0
 
 
+def _next_evidence_reappearance(
+    ladder: SeverityLadder,
+    taskset: TaskSet,
+    active: list[MultiLevelJob],
+    now: int,
+) -> Optional[int]:
+    """Earliest instant `_natural_level(..., level=state.level, ...)` could next
+    become nonzero, given the currently active population -- i.e. the earliest
+    not-yet-reached level-1 threshold among eligible active jobs.
+
+    Only level 1 needs checking, not every level up to state.level: a job
+    reaching a deeper threshold has already reached its (non-decreasing, per
+    ladder property (B)) level-1 threshold, so level 1 is always the earliest
+    possible transition from natural_level=0 to natural_level>0. This is what
+    lets a hold-off exit policy (`exit_policy="hysteresis"`) track "evidence
+    has been continuously clear since T" without missing a reappearance that
+    happens between two otherwise-scheduled events -- the same role
+    `escalate_if_triggered`'s own one-level-ahead lookahead plays for entry.
+
+    Not required for safety: whatever policy uses this still re-checks
+    `_natural_level` fresh at the instant it actually decides to exit, so a
+    missed or delayed wake-up here can only make a hold-off's timing less
+    precise, never unsafe. See `simulate_multilevel`'s `exit_policy` docs and
+    safety_proof.md's tempered-exit corollary.
+    """
+    thresholds = ladder.thresholds[0]
+    best: Optional[int] = None
+    for job in active:
+        if not ladder.may_trigger(taskset, job.task_id, 1):
+            continue
+        th = thresholds[job.task_id]
+        if math.isinf(th):
+            continue
+        expiry = job.busy_start + int(math.ceil(th))
+        if expiry > now:
+            best = expiry if best is None else min(best, expiry)
+    return best
+
+
 def _draw_exec_time(rng: np.random.Generator, taskset: TaskSet, i: int, hi_behaviour: bool) -> int:
     """Draw a job's execution time -- identical model to engine.py."""
     c_lo = taskset.C_lo[i]
