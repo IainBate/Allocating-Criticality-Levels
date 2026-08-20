@@ -736,6 +736,11 @@ def simulate_multilevel(
 
         state.running = active[0] if active else None
 
+        # --- cascade-opportunity diagnostic (read-only; see MultiLevelResult) ---
+        gap = 0
+        if measure_cascade_opportunity and state.level > 0:
+            gap = state.level - _natural_level(ladder, taskset, active, state.level, now)
+
         # --- next event ---
         next_t = duration
         if release_heap and release_heap[0][0] < next_t:
