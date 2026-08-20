@@ -700,6 +700,15 @@ def simulate_multilevel(
             )
             if dropped:
                 result.jne += 1
+                if measure_cascade_opportunity and state.level > 0:
+                    # Freshly computed, not reused from the end-of-iteration
+                    # `gap` below: that value describes the *forward* interval
+                    # starting at `now`, computed after every release this
+                    # instant is processed, whereas this release's own drop
+                    # decision happens mid-batch, possibly before a later
+                    # release in the same instant escalates the level further.
+                    if _natural_level(ladder, taskset, active, state.level, now) < state.level:
+                        result.overdegraded_jne += 1
                 if trace is not None:
                     trace.append((now, "drop", i))
             else:
