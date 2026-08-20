@@ -499,6 +499,7 @@ def simulate_multilevel(
     fp: float = 1e-4,
     release_offsets: Optional[list[Optional[int]]] = None,
     trace: Optional[list[tuple]] = None,
+    measure_cascade_opportunity: bool = False,
 ) -> MultiLevelResult:
     """Simulate a task set under the k-level severity-ladder scheme.
 
