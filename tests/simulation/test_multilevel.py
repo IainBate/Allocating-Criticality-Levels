@@ -29,7 +29,7 @@ from amc_tasksim.scheduling.amc_rtb import (
     normal_mode_schedulable,
 )
 from amc_tasksim.scheduling.priority import assign_deadline_monotonic
-from amc_tasksim.simulation.engine import AMC_RA, simulate
+from amc_tasksim.simulation.engine import AMC_RA, AMC_RH, simulate
 from amc_tasksim.simulation.multilevel import (
     MultiLevelJob,
     SeverityLadder,
