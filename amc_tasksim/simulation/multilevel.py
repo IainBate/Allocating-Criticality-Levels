@@ -753,8 +753,11 @@ def simulate_multilevel(
                     # instant is processed, whereas this release's own drop
                     # decision happens mid-batch, possibly before a later
                     # release in the same instant escalates the level further.
-                    if _natural_level(ladder, taskset, active, state.level, now) < state.level:
+                    nat = _natural_level(ladder, taskset, active, state.level, now)
+                    if nat < state.level:
                         result.overdegraded_jne += 1
+                        if nat == 0:
+                            result.overdegraded_jne_full_exit += 1
                 if trace is not None:
                     trace.append((now, "drop", i))
             else:
