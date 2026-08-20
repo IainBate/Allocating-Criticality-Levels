@@ -225,6 +225,79 @@ def test_k2_full_drop_reproduces_amc_ra_across_fp_values(tasksets):
                 )
 
 
+def test_k2_full_drop_amc_rh_exit_reproduces_amc_rh_exactly(tasksets):
+    """The verification this document's exit-policy work was designed to earn:
+    exit_policy="amc_rh" is not merely *inspired by* AMC-RH's exit rule, it
+    computes the identical predicate (`_natural_level(..., x_lo=0) == 0` is
+    "no active HI job has reached R_k(LO)"), so k=2/drop_policy="full" must
+    reproduce engine.py's AMC_RH bit-for-bit, the same bar the AMC_RA
+    reproduction test above holds the idle-exit path to.
+    """
+    mismatches = 0
+    checked = 0
+    for ts in tasksets:
+        r_lo = _r_lo(ts)
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        assert ladder is not None
+        for seed in range(N_SEEDS):
+            two_level = simulate(
+                ts, duration=DURATION, seed=seed, fp=FP,
+                mode_protocol=AMC_RH(r_lo), skip_quiet=False,
+            )
+            multi = simulate_multilevel(
+                ts, ladder, duration=DURATION, seed=seed, fp=FP, exit_policy="amc_rh",
+            )
+            checked += 1
+            for field_name in FIELDS:
+                if getattr(two_level, field_name) != getattr(multi, field_name):
+                    mismatches += 1
+    assert checked == len(tasksets) * N_SEEDS
+    assert mismatches == 0
+
+
+def test_amc_rh_exit_policy_never_stays_degraded_longer_than_idle_exit(tasksets):
+    """Sanity check on the direction of the effect: exiting on cleared
+    evidence can only exit sooner than waiting for the queue to idle, never
+    later, so TiD under "amc_rh" must never exceed TiD under "idle" for the
+    same task set, ladder and seed."""
+    for ts in tasksets[:6]:
+        ladder = build_ladder(ts, [0.0], drop_policy="full")
+        assert ladder is not None
+        for seed in range(3):
+            idle = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                        exit_policy="idle")
+            amc_rh = simulate_multilevel(ts, ladder, duration=DURATION, seed=seed, fp=FP,
+                                          exit_policy="amc_rh")
+            assert amc_rh.tid <= idle.tid
+
+
+def test_unknown_exit_policy_rejected(tasksets):
+    with pytest.raises(ValueError, match="exit_policy"):
+        ladder = build_ladder(tasksets[0], [0.0])
+        simulate_multilevel(tasksets[0], ladder, duration=1000, exit_policy="bogus")
+
+
+def test_overdegraded_jne_full_exit_never_exceeds_overdegraded_jne(tasksets):
+    for ts in tasksets[:6]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        assert ladder is not None
+        r = simulate_multilevel(ts, ladder, duration=DURATION, seed=1, fp=FP,
+                                 measure_cascade_opportunity=True)
+        assert 0 <= r.overdegraded_jne_full_exit <= r.overdegraded_jne
+        assert 0 <= r.overdegraded_jne_full_exit_pct <= r.overdegraded_jne_pct
+
+
+def test_full_exit_is_a_no_op_at_k2_when_gap_is_never_partial(tasksets):
+    """At k=2 there is no intermediate level, so every overdegraded drop is
+    full-exit-recoverable by construction: the split should be trivial."""
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0], drop_policy="full")
+    assert ladder is not None
+    r = simulate_multilevel(ts, ladder, duration=DURATION, seed=1, fp=FP,
+                             measure_cascade_opportunity=True)
+    assert r.overdegraded_jne_full_exit == r.overdegraded_jne
+
+
 # ---------------------------------------------------------------------------
 # The admissible policy: never worse than full drop, genuinely different
 # ---------------------------------------------------------------------------
