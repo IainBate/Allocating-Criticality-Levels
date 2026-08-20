@@ -40,6 +40,7 @@ research/*.blg
 research/*.log
 research/*.out
 research/*.pdf
+!research/report.pdf
 
 # uv
 uv.lock
