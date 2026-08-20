@@ -768,6 +768,19 @@ def simulate_multilevel(
             warnings.warn(f"simulation made no progress at t={now}; forcing advance", stacklevel=2)
             next_t = now + 1
 
+        if measure_cascade_opportunity:
+            dt = next_t - now
+            if gap > 0:
+                result.overdegraded_ticks += dt
+                result.overdegraded_level_ticks += gap * dt
+                if gap > result.max_overdegraded_gap:
+                    result.max_overdegraded_gap = gap
+                if not was_overdegraded:
+                    result.overdegraded_events += 1
+                was_overdegraded = True
+            else:
+                was_overdegraded = False
+
         if state.running is not None:
             state.running.executed += next_t - now
         state.time = next_t
