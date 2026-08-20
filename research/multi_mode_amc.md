@@ -232,6 +232,16 @@ Select k that maximizes objective while keeping overhead acceptable
 
 ### Phase 4: Drop Strategy Research
 
+> **Status.** Task 4.1 is answered: Stage 3 of the revised protocol
+> (`mode_optimization.tex` §"Bounded-Gain Configuration Selection") exhaustively bounds
+> any drop-strategy search's gain over the default (utilisation-ordered shed-early)
+> configuration at ≤0.79%, an order of magnitude under this study's 5% threshold — closing
+> the comparison without needing to run the strategies enumerated below individually.
+> Priority-based dropping specifically is *not* competitive (73–78% more shedding than
+> necessary), which corrects §5 Q3 below. Task 4.2 (exit strategy) remains genuinely open
+> and is additionally blocked: see the status note in `docs/README.md`'s Phase 4 section
+> and the `exit_time()` gap recorded in `docs/safety_proof.md` (Theorem 2 scope note).
+
 #### Task 4.1: LO Task Assignment to Criticality Levels
 **Objective**: Determine optimal assignment of low-criticality tasks to degradation levels.
 
