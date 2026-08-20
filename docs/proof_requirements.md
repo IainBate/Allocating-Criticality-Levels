@@ -191,16 +191,19 @@ Before deploying multi-level scheduling, verify:
 - [ ] **V.5**: No priority inversion in intermediate levels
 - [ ] **V.6**: BCET constraints maintained after level transitions
 
-> **Still blocked for a timed exit rule specifically.** `safety_proof.md` (Theorem 2 scope
-> note) distinguishes two cases. Evidence-cleared exit (event-triggered: the condition
-> becomes true only when a justifying job is removed, itself an already-visited event) is
-> exact without `exit_time()` and is now implemented, tested, and proven — see V.4 above.
-> A hysteresis or hold-off rule (time-triggered: the condition becomes true at a pure clock
-> instant nothing else schedules) is the case that remains blocked, and is now a lower
-> priority than when this was written: `docs/exit_strategy_analysis.md` measured
-> evidence-cleared exit's effect at +2% to +27% service ratio, an order of magnitude above
-> what hysteresis would plausibly add, at the cost of 20–87% more mode changes — a real
-> trade this document's V.4/V.6-style checks should extend to cover before a hysteresis
-> variant is considered on top of it.
+> **No longer blocked — a timed exit rule is built too.** `safety_proof.md` (Theorem 2 scope
+> note, superseded by Corollary 3) distinguished evidence-cleared exit (event-triggered, exact
+> without `exit_time()`) from a hysteresis/hold-off rule (time-triggered, needing a genuine
+> scheduled-event mechanism). Both are now implemented: `exit_policy="hysteresis"` in
+> `simulation.multilevel` adds `_next_evidence_reappearance` — an extension of the existing
+> next-event lookahead, not a new `exit_time()` abstraction as originally anticipated — so the
+> loop cannot skip past evidence reappearing between events. Proven safe for any `hold_off`
+> (Corollary 3): every exit is gated on a *fresh* check at the instant it fires, so the
+> lookahead's precision affects only how faithfully `hold_off` is honoured, never safety.
+> `docs/exit_strategy_analysis.md` (Result 4) sweeps it for real: a genuine sweet spot exists
+> between the service-ratio gain and the oscillation cost, and it shifts with utilisation —
+> capping the oscillation increase at ≤10% keeps 28–43% of the gain at U=0.6–0.7 but only
+> ~10.5% at U=0.9. V.5/V.6 above should extend to cover `exit_policy="hysteresis"` explicitly,
+> not just `"idle"`/`"amc_rh"`.
 
 
