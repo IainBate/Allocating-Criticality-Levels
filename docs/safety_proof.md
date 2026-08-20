@@ -379,6 +379,81 @@ a corollary of this proof.
 > loss such a mechanism could plausibly recover, as a diagnostic estimate, not
 > a safety argument.
 
+## Corollary 3: Tempered Exit Is Safe
+
+**Motivation.** `docs/exit_strategy_analysis.md` measures a real cost alongside
+Corollary 2's benefit: evidence-cleared exit increases level transitions
+20–87%. A tempered exit rule — wait some minimum `hold_off` after evidence
+clears, rather than leaving immediately — is a natural response, implemented
+as `exit_policy="hysteresis"` in `multilevel.py`. This corollary shows it needs
+no safety argument beyond Corollary 2's, for any `hold_off`.
+
+**Why $\mathrm{natural}(t) = 0$ is the exact safety boundary, not merely a
+reasonable choice.** This is worth making explicit, because Corollary 3 leans
+on it: $R_i(\chi)$ is a *worst-case* response-time bound, computed assuming
+full interference from every task not excluded by severity $\chi$. A
+HI-criticality task that has **not yet** reached $\mathrm{busy\_start}_i +
+R_i(\chi)$ is therefore guaranteed, by the bound's own definition, to complete
+within it *even under full, unrestricted interference from here on* — it
+needs no elevated budget or continued exclusion, because the bound already
+priced in the worst case. A task that **has** crossed it has no such guarantee
+left and needs $C_i^{\mathrm{hi}}$ and continued protection to have one at
+all. So $\mathrm{natural}(t) = 0$ — no active, eligible job has crossed its
+own threshold — is not an approximation of the safe boundary, it *is* the
+boundary the response-time bound's mathematics defines: safe at or after,
+unsafe strictly before. (This is the same fact Corollary 2's proof used
+implicitly, that AMC-RH's own exit rule checks exactly this predicate — stated
+explicitly here because Corollary 3 needs the "at or after" direction, not
+just the single instant Corollary 2 acts on.)
+
+**Statement.** For any `hold_off` $H \geq 0$, `exit_policy="hysteresis"` is
+exactly as safe as `exit_policy="amc_rh"`: it changes none of Theorem 1, the
+LO-deadline corollary, Lemma 1, or Corollary 1'.
+
+*Proof*: `exit_if_idle` (`multilevel.py`) never exits under `"hysteresis"`
+except when a **freshly evaluated** `_natural_level(...) == 0` at the exact
+instant it decides to act — the `evidence_clear_since` bookkeeping only
+decides *when* to attempt that check, never substitutes for it. By the
+boundary fact above, every instant at which the fresh check passes is
+individually safe to exit from, by the identical argument Corollary 2 already
+proves for the first such instant. Waiting longer than the first qualifying
+instant only means the system stays degraded longer under Theorem 1's
+protection, which that theorem places no bound on. So every actual exit under
+`"hysteresis"`, for any $H$, occurs at *some* instant Corollary 2's argument
+already covers — $H$ selects *which* safe instant, never an unsafe one.
+$\square$
+
+**Bracketing is structural, not incidental.** `exit_if_idle`'s exit condition
+is `not active or (...\geq H)` — idle checked first, unconditionally — so the
+realised exit instant is always $\min(\text{idle instant}, \text{first
+qualifying instant} + H)$: never earlier than Corollary 2's instant ($H=0$),
+never later than today's shipped idle-only exit. `hold_off=0` reproduces
+`exit_policy="amc_rh"` exactly and an arbitrarily large `hold_off` reproduces
+`exit_policy="idle"` exactly — not approximately: both are verified
+bit-identical in `tests/simulation/test_multilevel.py`
+(`test_hysteresis_with_zero_hold_off_reproduces_amc_rh_exactly`,
+`test_hysteresis_with_huge_hold_off_reproduces_idle_exactly`), which is a
+stronger check than an ordering test could be — the two limits are exact
+equalities, so `"hysteresis"` is a true interpolation between two already-safe
+policies, not a new one that merely resembles them.
+
+**Precision is not a safety property.** `_next_evidence_reappearance` exists
+so `next_t` includes every instant `natural(t)` could next become nonzero,
+which is what makes `hold_off` mean what it says (see its docstring). It is
+not required for the proof above: were it wrong or absent, the loop might
+recheck the exit condition later than ideal, delaying an exit that is still
+individually safe whenever it eventually does fire, by the same
+per-instant argument — never causing an early, unsafe one. Safety comes from
+the fresh gate in `exit_if_idle`; the lookahead only affects how faithfully
+`hold_off` is honoured in wall-clock time.
+
+> **Scope — same restriction as Corollary 2, inherited, not re-derived.**
+> `exit_policy="hysteresis"` only ever exits straight to $L_0$
+> (`multilevel.py`'s `exit_if_idle` has one target, `state.level = 0`, for
+> every policy). Tempering a *partial* demotion to an intermediate level
+> would face the same open carry-in question Corollary 2's scope note
+> describes, unaffected by anything in this corollary — it is not attempted.
+
 ## Theorem 3: Schedulability Preservation
 
 The previous statement of this theorem argued that "no LO task experiences
