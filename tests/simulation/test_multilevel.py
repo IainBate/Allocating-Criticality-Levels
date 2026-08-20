@@ -18,6 +18,8 @@ trigger/operating severity split (multilevel.py, SeverityLadder docstring):
 
 from __future__ import annotations
 
+import math
+
 import pytest
 
 from amc_tasksim.generation.taskset import TaskSet, generate_taskset
@@ -29,7 +31,9 @@ from amc_tasksim.scheduling.amc_rtb import (
 from amc_tasksim.scheduling.priority import assign_deadline_monotonic
 from amc_tasksim.simulation.engine import AMC_RA, simulate
 from amc_tasksim.simulation.multilevel import (
+    MultiLevelJob,
     SeverityLadder,
+    _natural_level,
     build_ladder,
     simulate_multilevel,
 )
