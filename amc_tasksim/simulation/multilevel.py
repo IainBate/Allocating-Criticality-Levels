@@ -545,6 +545,16 @@ def simulate_multilevel(
             O(k x n) check per event, on top of the existing escalation
             check of the same order, so runs that do not need it do not pay
             for it.
+        exit_policy: ``"idle"`` (default): exit to L0 only on an idle instant,
+            matching AMC-RA generalised across levels -- today's behaviour,
+            unchanged. ``"amc_rh"``: additionally exit to L0 the instant no
+            active, eligible job's threshold remains met (`_natural_level`
+            reaches 0), matching AMC-RH's own exit rule -- see
+            `docs/exit_strategy_analysis.md` for why this is a large,
+            resolved effect, and `safety_proof.md`'s evidence-cleared-exit
+            corollary for why it is safe: it only ever exits straight to L0,
+            never to an intermediate level, so it inherits AMC-RH's own
+            existing safety argument rather than needing a new one.
 
     Returns:
         A :class:`MultiLevelResult`.
