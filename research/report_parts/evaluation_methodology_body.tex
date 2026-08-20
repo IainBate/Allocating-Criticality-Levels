@@ -1,0 +1,143 @@
+
+\section{Task Set Generation}
+\label{sec:task-set-generation}
+
+Following DRS (RTSS 2020)~\cite{1a02ee59d96a4af497808eeb685b574c}, utilisation vectors are generated via the Dirichlet-Rescale algorithm.
+
+\subsection{DRS Algorithm}
+
+Given $n$ tasks and target utilisation $U$, the DRS algorithm produces $\mathbf{u} = (u_1, \dots, u_n)$ such that:
+\[
+\sum_{i=1}^n u_i = U, \quad 0 \leq u_i \leq 1
+\]
+
+The algorithm operates via:
+\begin{enumerate}
+    \item Draw $\mathbf{x} \sim \mathrm{Dirichlet}(1, \dots, 1)$ (uniform on simplex)
+    \item Scale: $u_i = U \cdot x_i$
+    \item Apply constraints via rescaling to standard simplex
+\end{enumerate}
+
+\subsection{Task Parameter Generation}
+
+For each task $\tau_i$, parameters are generated as follows:
+
+\begin{align*}
+T_i &\sim \mathrm{LogUniform}(\log(T_{\min}), \log(T_{\max})) \\
+D_i &= T_i \\
+C_i^{(0)} &= \round(u_i \cdot T_i) \\
+\mathrm{BCET}_i &\sim \mathrm{Uniform}(BCET_{\mathrm{min}} \cdot C_i^{(0)}, C_i^{(0)}) \\
+C_i^{(k-1)} &= \min(\round(CF \cdot C_i^{(0)}), T_i)
+\end{align*}
+
+where:
+\begin{itemize}
+    \item $T_{\min}$ and $T_{\max}$ are the minimum and maximum period bounds
+    \item $BCET_{\mathrm{min}}$ is the minimum BCET fraction (typically $0.8$)
+    \item $CF$ is the criticality factor relating normal to degraded budgets
+\end{itemize}
+
+\section{Metrics}
+
+\subsection{Degradation Metrics}
+
+\begin{align*}
+\textbf{NiD} &\quad \text{Number of times degraded mode is entered (from } L_0 \text{ only)} \\
+\textbf{TiD} &\quad \text{Fraction of time spent in degraded mode} \\
+\textbf{JNE} &\quad \text{Jobs Not Executed (LO jobs dropped)} \\
+\textbf{Term.} &\quad \text{Terminations (LO jobs discarded at their deadline, incomplete)} \\
+\textbf{JNC} &\quad \text{Jobs Not Completed} = \text{JNE} + \text{Term.}\text{; reported normalised} \\
+\textbf{HDM} &\quad \text{HI Deadline Miss (HI jobs missing deadline; must be zero for a safe scheme)} \\
+\textbf{LevelTrans} &\quad \text{Number of degradation-level changes, any direction, at any depth}
+\end{align*}
+
+$\mathrm{LevelTrans}$ generalises $\mathrm{NiD}$ for $k > 2$: $\mathrm{NiD}$ only
+counts transitions out of $L_0$, so it cannot see oscillation confined to the
+degraded levels ($L_2 \leftrightarrow L_3$, say), which a badly-spaced severity
+ladder can produce. At $k = 2$ the two are proportional.
+
+\subsection{Objective Function}
+\label{sec:objective-function}
+
+For $k$-level scheduling, we define the objective function:
+
+\[
+\Phi = \alpha \cdot \E[\mathrm{JNE}] + \beta \cdot \E[\mathrm{TiD}] + \gamma \cdot \E[\mathrm{WastedCPU}] + \delta \cdot \E[\mathrm{LevelTrans}]
+\]
+
+where:
+\begin{itemize}
+    \item $\mathrm{JNE}$: Jobs Not Executed (LO jobs dropped)
+    \item $\mathrm{TiD}$: Fraction of time spent in degraded mode
+    \item $\mathrm{WastedCPU}$: CPU cycles spent on abandoned LO work
+    \item $\mathrm{LevelTrans}$: Number of level changes (penalizes frequent or oscillating mode changes; see above)
+\end{itemize}
+$\mathrm{NiD}$ remains a reported metric for direct comparison against the
+two-level AMC-RH baseline, which only ever defines it; it is not
+double-counted in $\Phi$ once $\mathrm{LevelTrans}$ is included.
+The coefficients $\alpha, \beta, \gamma, \delta$ are weighting parameters that can be tuned based on
+application requirements.
+\reviewnote{This definition of $\Phi$ uses $\mathrm{JNE}$. Later work (\Cref{sec:transition}'s
+deadline-termination discussion; \texttt{docs/metrics\_objective.md}) argues $\mathrm{JNC} =
+\mathrm{JNE} + \mathrm{Term.}$ is the primary metric instead, specifically because JNE alone is
+blind to jobs lost by termination rather than abandonment -- and every $\Phi$ actually reported in
+this document's results sections uses JNC-based service ratio, not this JNE-based formula. This
+section was not updated when that argument was made elsewhere. Found while assembling this
+report, not previously flagged: worth deciding whether to update this definition to JNC (matching
+practice) or state explicitly why JNE is the right choice here specifically.}
+
+\section{Simulation Parameters}
+
+Common parameter values used in evaluation. These are the defaults of
+\texttt{amc\_tasksim.generation.taskset.generate\_taskset}, quoted here as
+named values rather than literals so the two cannot silently drift apart --
+\texttt{tests/generation/test\_paper\_defaults.py} checks this table against
+the function's actual defaults on every test run.
+
+\begin{table}[h]
+\centering
+\caption{Default Simulation Parameters}
+\begin{tabular}{lll}
+\toprule
+Parameter & Default Value & Description \\
+\midrule
+$n$ & \defaultNumTasks{} & Number of tasks \\
+$CP$ & \defaultCP{} & Criticality proportion (fraction of tasks HI) \\
+$U$ & \defaultU{} & Target total LO-criticality utilisation \\
+$N$ & \defaultInvFailProb{} & Inverse HI-behaviour probability ($FP = 1/N$) \\
+$T_{\min}$ & \defaultTmin{} & Minimum task period (ticks) \\
+$T_{\max}$ & \defaultTmax{} & Maximum task period (ticks) \\
+$BCET_{\mathrm{min}}$ & \defaultBCETmin{} & Minimum BCET as fraction of $C_i^{\mathrm{lo}}$ \\
+\midrule
+$CF$ & varies by experiment & Criticality factor -- swept, not defaulted \\
+$k$ & 2 (baseline) & Number of degradation levels -- swept in $\{2,3,4\}$ per \texttt{amc\_tasksim.experiments.contract} \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\section{Notation Summary: Evaluation Metrics}
+\label{sec:notation-eval}
+
+\begin{table}[h]
+\centering
+\caption{Notation Reference}
+\begin{tabular}{ll}
+\toprule
+Symbol & Meaning \\
+\midrule
+$n$ & Number of tasks \\
+$U$ & Target utilisation \\
+$\mathbf{u}$ & Utilisation vector \\
+$T_i$ & Period of task $i$ \\
+$D_i$ & Deadline of task $i$ \\
+$C_i^{(0)}$ & Normal execution budget \\
+$C_i^{(k-1)}$ & HI execution budget \\
+$\mathrm{BCET}_i$ & Best-case execution time \\
+$U_i^{\mathrm{lo}}, U_i^{\mathrm{hi}}$ & Utilisation in LO/HI modes \\
+$FP = 1/N$ & HI-behaviour probability per job \\
+$CF$ & Criticality factor \\
+$k$ & Number of degradation levels \\
+$\tau^{\mathrm{HI}}, \tau^{\mathrm{LO}}$ & HI/LO criticality subsets \\
+\bottomrule
+\end{tabular}
+\end{table}

@@ -1,0 +1,179 @@
+\documentclass{article}
+\usepackage{amsmath, amssymb, amsthm}
+\usepackage{booktabs}
+\usepackage{multirow}
+\usepackage{geometry}
+\usepackage{graphicx}
+\usepackage{hyperref}
+\usepackage{cleveref}
+\usepackage{xcolor}
+
+\geometry{margin=1in}
+\hypersetup{colorlinks=true, urlcolor=blue}
+
+\input{macros}
+\input{eval_defaults}
+
+% --- Review-pass markup, added for a human review of this draft. Strip this
+% block and every \reviewnote/\decisionnote call before final submission.
+% Plain fcolorbox/parbox, not todonotes: todonotes' inline notes rendered as
+% empty space in this document for reasons not worth chasing further, so this
+% avoids the dependency rather than debugging it (see mode_optimization.tex's
+% own copy of this note for the isolation trail). ---
+\newcommand{\reviewnote}[1]{\par\noindent\fcolorbox{red!70!black}{red!8}{%
+  \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\textbf{REVIEW --} #1}}\par\smallskip}
+\newcommand{\decisionnote}[1]{\par\noindent\fcolorbox{blue!60!black}{blue!6}{%
+  \parbox{\dimexpr\linewidth-2\fboxsep-2\fboxrule\relax}{\textbf{DECISION --} #1}}\par\smallskip}
+
+\title{Multi-Level Graceful Degradation for Mixed-Criticality Scheduling}
+\author{}
+\date{}
+
+\begin{document}
+
+\maketitle
+
+\begin{center}
+\fbox{\parbox{0.85\textwidth}{\footnotesize \textbf{Review copy, assembled from three
+previously separate documents} (\texttt{task\_model.tex}, \texttt{evaluation\_methodology.tex},
+\texttt{mode\_optimization.tex} -- each still compiles independently via the project
+\texttt{Makefile}; this file is the combined reading order). Highlighted boxes flag specific
+points for review (\textbf{\textcolor{red!70!black}{REVIEW}}) and open decisions for future work
+(\textbf{\textcolor{blue!60!black}{DECISION}}). \Cref{sec:review-notes} near the end collects
+items that do not attach to one location. Remove every \texttt{\textbackslash reviewnote}/%
+\texttt{\textbackslash decisionnote} call (and their definitions, near the top of the source)
+before any external submission.}}
+\end{center}
+
+\begin{abstract}
+Mixed-criticality (MC) scheduling improves on worst-case pessimism by certifying
+high-criticality (HI) tasks under an optimistic assumption during normal operation and falling
+back to a pessimistic one if that assumption is violated. Across three decades of MC scheduling
+research, that fallback has almost always been a single, abrupt step: some or all
+low-criticality (LO) work is abandoned at once, and the literature's refinements have targeted
+\emph{when} that step fires, not what happens once it does. Graceful degradation -- responding
+in proportion to severity rather than as one cliff-edge -- is well established elsewhere in
+dependable systems design, but has not been brought into MC scheduling with the same analytical
+rigor the two-level case already has. This document presents a severity-indexed ladder of
+degradation levels whose safety is certified by the same response-time analysis used for
+classic two-level Adaptive MC (AMC) scheduling, generalised rather than replaced; the
+evaluation methodology and metrics used to assess it; the staged empirical protocol used to
+choose how the ladder should be configured, executed on real simulation data rather than merely
+proposed; and, following directly from what that protocol found, a further result on \emph{exit}
+timing -- when a degraded level should be left, not just entered -- that turned out to be the
+largest single effect measured in this line of work. Results, methods, and a small number of
+open decisions are reported together, on the position that a reviewer should be able to see
+the whole argument in one document rather than reconstruct it from separate files.
+\end{abstract}
+
+\section{Introduction}
+\label{sec:introduction}
+
+Safety-critical systems increasingly host tasks of different criticality on the same platform --
+functions whose failure could contribute to an accident alongside functions whose failure is
+merely inconvenient. Certifying every task to the same, conservative worst-case execution time
+(WCET) bound wastes most of the processor most of the time, since the bound a certification
+authority will accept for a high-criticality (HI) function is typically far more pessimistic than
+the execution time that function actually needs in normal operation. Vestal's original
+formulation of mixed-criticality (MC) scheduling~\cite{Vestal} exploits this directly: certify
+HI-criticality tasks against their pessimistic bound, but \emph{schedule} the system, in normal
+operation, against a less pessimistic one -- and provide a fallback guarantee for the case where
+a HI-criticality job actually needs more than that optimistic budget. The field this founded is
+now large enough to have its own survey~\cite{MCS_survey} and its own recurring workshop, and the
+question of what the fallback should look like, and how to justify it to a certification
+authority, has been treated as a first-class problem in its own right rather than an
+afterthought~\cite{graydon2013safetyassurance}.
+
+\textbf{The fallback has almost always been a single, abrupt step.} The dominant formulation --
+Adaptive MC (AMC), and the runtime co-design refinements this project's own prior work
+contributes~\cite{9804600} -- has one normal mode and one degraded mode: a HI-criticality job
+reaching a response-time threshold trips a single transition, after which low-criticality (LO)
+work is abandoned, either entirely or via whatever conservative rule the exit protocol specifies.
+Bailout protocols make the same shape more literal still, dropping every LO-criticality task at
+the instant of detection rather than allowing any grading at
+all~\cite{ecrts_bailout,tse_bailout}. Subsequent work in the field has continued to refine this
+picture -- justifying more precisely how much LO-criticality service is actually
+lost~\cite{rtns_2020_service}, and asking how robust the two-level guarantee is under realistic
+assumptions~\cite{resilient_scheduling} -- but in every case the refinement targets \emph{when}
+the abrupt step fires or how quickly the system returns from it, not what the step itself looks
+like. Whether a HI-criticality overrun is barely over budget or catastrophically over budget, the
+LO-criticality response today is the same: gone.
+
+\textbf{Graceful degradation is not a new idea; it is simply new to this corner of scheduling
+theory.} Responding to a fault or an overload in proportion to its severity, rather than as one
+discrete fallback, has been a recognised attribute of dependable systems since Laprie's
+foundational terminology for the field~\cite{Laprie_dependability_definition}, and a substantial,
+independent line of work in fault-tolerant and distributed embedded systems has built and
+evaluated staged degradation directly: fail-stop processors as a composable building block for a
+graded response~\cite{schlichting83failstop}, general architectural frameworks for graceful
+degradation in distributed embedded systems~\cite{shelton}, product-family approaches to the same
+problem~\cite{nace}, and task-allocation algorithms explicitly optimised against a utility model
+of how the system degrades as components fail~\cite{rtss_2008}. None of this is drawn from MC
+scheduling -- it predates the field's current form by decades in some cases -- and none of it
+carries a real-time response-time guarantee of the kind MC scheduling depends on. It establishes
+something narrower but still useful here: that staged, proportionate degradation is a workable,
+well-studied design pattern in systems that must keep working under fault, not a speculative one.
+
+\textbf{Contribution.} This document brings graceful degradation into MC scheduling with the same
+analytical grounding the two-level case already has, rather than as a heuristic utility function
+layered on top of it. The mechanism is a severity-indexed ladder of intermediate degradation
+levels, each protected by the \emph{same} response-time analysis already used to certify the
+two-level guarantee -- generalised across levels, not replaced by a new argument per level
+(\Cref{sec:design-rationale,sec:admissibility}). Three things follow from taking that route
+seriously rather than assuming it works: a principled way to decide \emph{how many} levels and
+where to place them, settled empirically rather than by convention
+(\Cref{sec:optimisation-problem-statement}--\Cref{sec:protocol}); a full-scale empirical result
+comparing the scheme against two-level AMC across utilisation and deadline regimes
+(\Cref{sec:stage-results}); and a second, unanticipated result that the same machinery makes
+answerable -- not just when to enter a degraded level, but how gracefully to \emph{leave} one,
+which turns out to be the single largest effect measured anywhere in this document
+(\Cref{sec:exit-results}).
+
+\textbf{Structure of this document.} \Cref{sec:design-rationale}--\Cref{sec:notation-task-model}
+present the task model, the safety argument for the graded ladder, and the two operating points
+the model admits. \Cref{sec:task-set-generation}--\Cref{sec:notation-eval} present the evaluation
+methodology: how task sets are generated, the metrics and objective function used to score a
+configuration, and the simulation parameters held fixed throughout. From
+\Cref{sec:optimisation-problem-statement} onward the document turns to the optimisation question
+this line of work exists to answer -- how the ladder should be configured, and, following from
+what that investigation found, how it should be exited -- reporting the staged protocol,
+its results, and what they do and do not establish. This is a review draft: specific points are
+flagged inline as they arise, and \Cref{sec:review-notes} near the end collects the small number
+of items that concern the document as a whole.
+
+\input{report_parts/task_model_body}
+
+\input{report_parts/evaluation_methodology_body}
+
+\input{report_parts/mode_optimization_body}
+
+\section{Conclusion}
+\label{sec:conclusion}
+
+The central claim of this document is that graceful degradation can be added to mixed-criticality
+scheduling without weakening the guarantee the field already relies on: every level of the
+severity ladder is certified by the same response-time analysis used for the classic two-level
+case, generalised rather than replaced (\Cref{sec:design-rationale,sec:admissibility}), and the
+scheme beats two-level AMC-RA across every configuration of a properly-powered regime map
+(\Cref{sec:stage-results}). Getting there required correcting more than one claim along the way
+rather than only confirming them -- an underpowered pilot's apparent loss at the hardest tested
+regime, a retracted unconditional safety statement replaced by a graded one, an overclaim about
+whole-run time-degraded caught while writing its own proof -- and each correction is left visible
+in the text rather than silently absorbed, on the view that a document which never revises itself
+in front of the reader is less trustworthy, not more.
+
+What was not anticipated at the outset is where the largest remaining effect turned out to live:
+not in how many levels to use, or where to place their triggers -- both vacuous under the adopted
+policy -- but in \emph{exit} timing, a question the original protocol was not designed to ask
+(\Cref{sec:exit-results}). That result is reported with the same discipline as the rest of the
+document: a real, measured cost (increased oscillation) alongside the real, measured benefit,
+neither one asserted to dominate the other without a validated way to weigh them.
+
+This is a review draft, not a finished one. \Cref{sec:review-notes} collects what still needs a
+decision -- most of it now concentrated in exit-timing behaviour, not in the parts of the
+argument that were settled earlier and have stood since.
+
+\bibliographystyle{plain}
+\bibliography{project_bib,references}
+
+\end{document}
