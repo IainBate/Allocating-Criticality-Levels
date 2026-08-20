@@ -13,8 +13,10 @@ This phase investigates how to optimally select which LO-criticality tasks to dr
 > to +27% service ratio against a real cost of 20–87% more mode changes; cascade
 > (intermediate-level demotion) is closed with evidence rather than built, at ≤0.86
 > percentage points of headroom beyond full exit. Hysteresis specifically (Strategy C
-> below) remains unbuilt and is now lower priority given how much larger the plain
-> evidence-cleared effect turned out to be.
+> below) is now also built (`exit_policy="hysteresis"`), proven safe for any `hold_off`, and
+> swept for real across `hold_off` and utilisation: it recovers part of the evidence-cleared
+> effect's oscillation cost, with a sweet spot that shifts with U rather than being one fixed
+> value (`docs/exit_strategy_analysis.md`, Result 4).
 
 ---
 
