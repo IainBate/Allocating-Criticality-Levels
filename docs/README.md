@@ -68,8 +68,8 @@ The primary research plan that outlines the entire project structure:
 
 | File | Description |
 |------|-------------|
-| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes. Written before the revised protocol ran; Task 4.1's core question is now answered (below), Task 4.2 has a strong pilot result but no built mechanism yet |
-| `exit_strategy_analysis.md` | **Task 4.2 pilot** - cascade/early-exit opportunity, measured before building or proving a mechanism (same pattern Stage 3 used for drop strategy) |
+| `drop_strategy_research.md` | **Phase 4 plan** - Strategies for selecting which LO tasks to drop and when to exit degraded modes. Written before the revised protocol ran; both tasks are now answered (below) |
+| `exit_strategy_analysis.md` | **Task 4.2, measured** - evidence-cleared exit built, proven safe, and measured as a real paired trial; cascade exit closed with evidence, not implemented |
 
 **Status**:
 - **Task 4.1 (which tasks to drop): answered.** Utilisation-ordered shed-early beats
@@ -77,21 +77,21 @@ The primary research plan that outlines the entire project structure:
   search (`../research/mode_optimization.tex` §"Bounded-Gain Configuration Selection")
   bounds any method's further gain over that default at ≤0.79% — an order of magnitude
   under this study's 5% threshold. No further drop-strategy comparison is planned.
-- **Task 4.2 (exit strategy): mechanism still not built, but no longer blocked, and now
-  well-motivated.** `exit_strategy_analysis.md` measures — before building or proving
-  anything — how much LO work the current direct-exit-on-idle rule sheds after the
-  triggering evidence has already gone stale. Result: resolved above the study's 5% floor
-  in 8 of 16 `shed_early` cells, growing with utilisation and deadline tightness, reaching
-  15–21% at U=0.9 — the largest exit-related effect found anywhere in this project, an
-  order of magnitude above every entry-side knob already closed. The reframe that made
-  this tractable: for `shed_early` (the adopted policy), this is not a cascade question at
-  all — there is only one drop set, so the only lever is early exit to `L0`, and AMC-RH's
-  early-exit rule (`engine.py`, `AMC_RH.should_exit`) already exists, is already tested,
-  and already has a safety argument. What remains is implementing that rule as a scheduled
-  event in `multilevel.py` (mirroring `entry_time()`'s pattern) and re-measuring the actual
-  paired service-ratio gain, not the diagnostic proxy. General cascade exit for the
-  `progressive` policy remains open and separately harder — see the analysis document's
-  closing sections.
+- **Task 4.2 (exit strategy): the shed_early case is answered; general cascade is closed
+  with evidence, not built.** `simulation.multilevel` implements `exit_policy="amc_rh"`
+  (verified bit-identical to `engine.py`'s `AMC_RH` at k=2), proven safe for full exit only
+  by `safety_proof.md`'s Corollary 2, and measured as a real paired trial
+  (`exit_opportunity.early_exit_trial`, `research/mode_optimization.tex` §"Stage 5"): +2%
+  to +27% service ratio, 11 of 16 cells practically significant — the largest exit-related
+  effect this project has measured. It comes with a real, equally-resolved cost: level
+  transitions rise 20–87% in lockstep with the benefit, reported alongside it rather than
+  netted against an unvalidated `Φ` weighting. Separately, decomposing the same measurement
+  for `progressive` shows a genuine cascade mechanism could add at most 0.04–0.86 percentage
+  points beyond full exit alone — below threshold everywhere, closing that question the same
+  way Stage 3 closed drop-strategy search, without building or proving it. See
+  `exit_strategy_analysis.md` for the full account, including a proof overclaim caught and
+  corrected while writing Corollary 2 (whole-run TiD is not proven to only decrease, though
+  safety does not depend on it).
 
 ---
 
