@@ -647,6 +647,172 @@ bigger ordering study''; it is the one \Cref{sec:bounded-gain-results} already
 reached by a different route: the ordering effect is too small to matter, and
 further calibration would only be calibrating noise.
 
+\subsection{Stage 5: Evidence-Cleared Exit}
+\label{sec:exit-results}
+
+Stages 0--4 fixed \emph{entry}: which severities to use, how many levels, which
+tasks to shed, in what order -- and closed every one of those questions,
+because every knob moved the objective by under $1.6\%$
+(\Cref{sec:final-status}). None of them touched \emph{exit}. The shipped
+scheme leaves a degraded level only on an idle instant, generalising AMC-RA;
+task\_model.tex's ``Mode Transition Protocol'' states the exit rule as
+``direct or cascade, per protocol design'' and leaves it open. This section is
+a fifth stage, added after the four above concluded, asking the question they
+did not: does exit timing matter as much as entry configuration turned out not
+to?
+
+\textbf{A confound, found before trusting the headline number.} The first cut
+of a diagnostic measuring time spent degraded beyond what active evidence
+justifies returned $62$--$91\%$ across the grid -- implausibly large next to
+every other effect in this study. Tracing a real run explained why: the
+HI-criticality job that triggers entry typically completes quickly, but the
+run-queue backlog it leaves behind takes much longer to drain, and the system
+correctly stays degraded until that backlog clears. A busy queue draining
+after its trigger has gone is not a cost. The metric used below instead --
+LO-criticality jobs actually abandoned on release \emph{during} that
+unjustified tail -- is not subject to this confound: a job dropped during the
+tail is a countable instance of exactly the service loss a smarter exit rule
+could plausibly have avoided.
+
+\textbf{The reframe that made this tractable.} \texttt{shed\_early} (the
+adopted default) uses a single drop set at every level $\geq 1$ -- there is no
+intermediate level to cascade \emph{through}, so for this policy the only
+lever an exit rule has is \emph{when} the system returns to $L_0$, not
+\emph{which} drop set applies along the way. That is exactly the question
+AMC-RH already answers, with a rule that already exists, is already tested,
+and already has a published safety argument: exit to $L_0$ the instant no
+active, eligible job's own threshold remains met, rather than waiting for the
+queue to idle. \texttt{simulation.multilevel} now implements this as
+\texttt{exit\_policy="amc\_rh"}, verified bit-for-bit against \texttt{engine.py}'s
+\texttt{AMC\_RH} at $k=2$
+(\texttt{test\_k2\_full\_drop\_amc\_rh\_exit\_reproduces\_amc\_rh\_exactly}), and
+proven safe -- scoped explicitly to full exit only, not partial demotion -- as
+Corollary 2 of the safety proof.
+
+\begin{table}[h]
+\centering
+\caption{Service ratio, exit\_policy="amc\_rh" (candidate) paired against "idle" (baseline, today's shipped behaviour), shed\_early only, both operating points. $n=24$ task sets ($n=8$ at $U=0.90$/tight -- population scarcity, \Cref{sec:feasibility-results}), $5$ seeds, $200{,}000$ ticks, $f_p=0.2$.}
+\label{tab:exit-service-ratio}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrrl}
+\toprule
+$U$ & Regime & Point & $n$ & Idle & AMC-RH-exit & Diff & Rel.\ & Verdict \\
+\midrule
+0.60 & implicit & A & 24 & 0.9747 & 0.9942 & +0.0195 & +2.00\% & sig. \\
+0.60 & implicit & B & 24 & 0.9837 & 0.9957 & +0.0120 & +1.22\% & sig. \\
+0.60 & tight & A & 24 & 0.9259 & 0.9802 & +0.0543 & +5.86\% & \textbf{practsig} \\
+0.60 & tight & B & 24 & 0.9373 & 0.9825 & +0.0451 & +4.81\% & sig. \\
+\addlinespace
+0.70 & implicit & A & 24 & 0.9420 & 0.9832 & +0.0411 & +4.37\% & sig. \\
+0.70 & implicit & B & 24 & 0.9601 & 0.9868 & +0.0267 & +2.78\% & sig. \\
+0.70 & tight & A & 24 & 0.8566 & 0.9654 & +0.1088 & +12.70\% & \textbf{practsig} \\
+0.70 & tight & B & 24 & 0.8711 & 0.9688 & +0.0976 & +11.21\% & \textbf{practsig} \\
+\addlinespace
+0.80 & implicit & A & 24 & 0.9057 & 0.9779 & +0.0723 & +7.98\% & \textbf{practsig} \\
+0.80 & implicit & B & 24 & 0.9289 & 0.9813 & +0.0524 & +5.65\% & \textbf{practsig} \\
+0.80 & tight & A & 24 & 0.7772 & 0.9502 & +0.1731 & +22.27\% & \textbf{practsig} \\
+0.80 & tight & B & 24 & 0.8070 & 0.9543 & +0.1473 & +18.25\% & \textbf{practsig} \\
+\addlinespace
+0.90 & implicit & A & 24 & 0.8118 & 0.9610 & +0.1492 & +18.37\% & \textbf{practsig} \\
+0.90 & implicit & B & 24 & 0.8471 & 0.9648 & +0.1177 & +13.89\% & \textbf{practsig} \\
+0.90 & tight & A & 8 & 0.7355 & 0.9332 & +0.1977 & +26.89\% & \textbf{practsig} \\
+0.90 & tight & B & 8 & 0.7948 & 0.9418 & +0.1469 & +18.49\% & \textbf{practsig} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\textbf{The benefit is real, resolved, and the largest exit-related effect this
+study has found.} Every one of the $16$ cells is a positive difference;
+$11$ are practically significant, growing with utilisation and with tight
+deadlines, from $+2.0\%$ at $U=0.6$ to $+22$--$27\%$ at $U=0.8$--$0.9$. That
+is an order of magnitude above every entry-side knob this study closed
+(\Cref{sec:final-status}: $\leq 1.6\%$) and above Stage 3's exhaustive bound on
+drop-strategy search ($\leq 0.79\%$).
+
+\begin{table}[h]
+\centering
+\caption{Level transitions per run -- the oscillation cost, tracked deliberately rather than assumed away. Same cells, configuration and pairing as \Cref{tab:exit-service-ratio}.}
+\label{tab:exit-oscillation}
+\resizebox{\textwidth}{!}{%
+\begin{tabular}{lllrrrrl}
+\toprule
+$U$ & Regime & Point & Idle & AMC-RH-exit & Diff & Rel.\ & Verdict \\
+\midrule
+0.60 & implicit & A & 129.1 & 161.9 & +32.8 & +25.4\% & \textbf{practsig} \\
+0.60 & implicit & B & 125.6 & 161.9 & +36.3 & +28.9\% & \textbf{practsig} \\
+0.60 & tight & A & 323.8 & 390.1 & +66.3 & +20.5\% & \textbf{practsig} \\
+0.60 & tight & B & 322.6 & 390.0 & +67.5 & +20.9\% & \textbf{practsig} \\
+\addlinespace
+0.70 & implicit & A & 166.3 & 222.3 & +55.9 & +33.6\% & \textbf{practsig} \\
+0.70 & implicit & B & 156.5 & 222.0 & +65.5 & +41.9\% & \textbf{practsig} \\
+0.70 & tight & A & 402.2 & 522.4 & +120.2 & +29.9\% & \textbf{practsig} \\
+0.70 & tight & B & 398.4 & 522.6 & +124.2 & +31.2\% & \textbf{practsig} \\
+\addlinespace
+0.80 & implicit & A & 147.8 & 209.6 & +61.8 & +41.8\% & \textbf{practsig} \\
+0.80 & implicit & B & 140.8 & 209.7 & +68.8 & +48.9\% & \textbf{practsig} \\
+0.80 & tight & A & 396.7 & 568.3 & +171.6 & +43.3\% & \textbf{practsig} \\
+0.80 & tight & B & 380.8 & 568.1 & +187.3 & +49.2\% & \textbf{practsig} \\
+\addlinespace
+0.90 & implicit & A & 185.6 & 300.4 & +114.7 & +61.8\% & \textbf{practsig} \\
+0.90 & implicit & B & 160.7 & 300.4 & +139.7 & +86.9\% & \textbf{practsig} \\
+0.90 & tight & A & 411.4 & 631.6 & +220.2 & +53.5\% & \textbf{practsig} \\
+0.90 & tight & B & 356.4 & 631.6 & +275.2 & +77.2\% & \textbf{practsig} \\
+\bottomrule
+\end{tabular}%
+}
+\end{table}
+
+\textbf{The oscillation cost is equally real, and it is not a rounding
+artefact.} Every one of the $16$ cells shows a practically significant
+\emph{increase} in level transitions, $20$--$87\%$, on baselines already in the
+hundreds per run ($125$--$411$), so the increase is substantial in absolute
+count too ($+33$ to $+275$ transitions), not merely a large percentage of a
+small number. It grows with utilisation in lockstep with the service-ratio
+benefit -- exactly the same cells that gain the most also oscillate the most.
+This is the direct, measured answer to whether evidence-cleared exit trades
+service for churn: it does, and the trade is not free in either direction.
+Whether that trade is worth taking is an editorial judgement this document
+does not make unilaterally; $\delta$, the fixed weight metrics\_objective.md
+assigns level transitions in $\Phi$, is deliberately small relative to
+$\alpha(U)$ and $\beta(U)$, which is this project's own prior that churn
+matters less than service loss and time degraded -- but a $20$--$87\%$ relative
+increase is large enough that this prior should be checked against the
+combined objective explicitly before the result is presented as an
+unqualified win, not assumed from the weight alone.
+
+\textbf{Progressive: cascade adds almost nothing beyond full exit alone.} The
+diagnostic upper bound (before the mechanism existed) suggested progressive's
+opportunity might exceed shed\_early's. Decomposing it by what kind of exit
+each unjustified drop would have needed answers whether that headroom is real:
+of the same JNE-during-tail measure, $92$--$97\%$ is recoverable by full exit
+alone in every cell tested, leaving a cascade-specific remainder of
+$0.04$--$0.86$ percentage points -- itself below this study's $5\%$ floor
+everywhere, and an order of magnitude below it in most cells. Intuitively this
+is because a shallow rung's evidence typically has a head start on clearing:
+by the time the deepest rung's evidence has gone stale, the shallow rung's
+usually has too, so the system needs a partial demotion (not a full exit) only
+rarely. \textbf{This closes the cascade question with evidence, the same way
+Stage 3 closed the drop-strategy search}: a general cascade-exit mechanism
+would need a new abstraction in \texttt{multilevel.py} (direct exit is
+currently the only exit rule it supports) and a new safety argument (unlike
+full exit, an intermediate level's admissibility was certified for a system
+that \emph{escalated} to it, not one that \emph{demoted} to it -- Corollary 2's
+scope note), and the table above shows that investment has almost nothing left
+to buy. It is not recommended.
+
+\textbf{Safety.} Corollary 2 of the safety proof establishes that evidence-cleared
+exit changes none of Theorem 1, the LO-deadline corollary, Lemma 1, or
+Corollary 1' -- full exit to $L_0$ inherits AMC-RH's own existing safety
+argument rather than needing a new one, because $L_0$ is unrestricted normal
+mode under both schemes. It is explicitly \emph{not} claimed that total time
+degraded can only fall over a whole run: admitting a LO job idle-exit would
+have dropped can, via priority interference, pull a later HI-criticality
+task's inherited busy-period start earlier and trigger an escalation the
+idle-exit run would not have had. Safety does not depend on this either way;
+net TiD, service ratio and oscillation are exactly the measured quantities in
+\Cref{tab:exit-service-ratio,tab:exit-oscillation}, not derived from the proof.
+
 \subsection{Status of the original phases}
 
 \Cref{sec:phase-a} (landscape characterisation) is superseded by Stage 0 and
