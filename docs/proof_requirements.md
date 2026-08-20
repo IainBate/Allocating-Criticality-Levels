@@ -51,23 +51,30 @@ now, and by what.
 
 ## Open Proof Questions
 
+> **Status as of the revised protocol** (`research/mode_optimization.tex`, "Revised
+> Protocol" and "Stage Results"): three of the six rows below were written before that
+> protocol ran and asked the wrong question, or a question the protocol answered by a
+> different route than the one proposed here. Each is annotated rather than deleted, per
+> this project's convention of recording a correction instead of silently rewriting it
+> (see `task_model.tex` and `safety_proof.md`'s own corrections).
+
 ### Quality of Service Proofs
 | Question | Description | Difficulty | Status |
 |----------|-------------|------------|--------|
-| **O.1**: Is multi-level scheduling *strictly better* than two-level? | Can we prove that expected JNE decreases as $k$ increases (for optimal drop policies)? | Medium - requires stochastic analysis of drop policies | Partially addressed by Criterion 1 in metrics_objective.md |
-| **O.1a**: Prove monotonic JNE for priority-based dropping | Show $\E[\mathrm{JNE}_k] \leq \E[\mathrm{JNE}_{k-1}]$ for the specific drop policy used | Medium - needs stochastic ordering proof | **Open** |
+| **O.1**: Is multi-level scheduling *strictly better* than two-level? | Can we prove that expected JNE decreases as $k$ increases (for optimal drop policies)? | Medium - requires stochastic analysis of drop policies | **Answered empirically, not by proof.** The regime map (`mode_optimization.tex` §Stage 2) shows the scheme beats two-level AMC-RA in all 32 configurations tested, $+2.4\%$ to $+27.3\%$, 22/32 practically significant. This is at the tested grid points, not a general stochastic-ordering proof — see the two scope limits in `mode_optimization.tex` §"What This Protocol Does and Does Not Yet Establish". It is *not* driven by $k$: $k$ and trigger spacing were subsequently found to be vacuous (see O.2) — the effect comes from drop policy and operating point instead. |
+| **O.1a**: Prove monotonic JNE for priority-based dropping | Show $\E[\mathrm{JNE}_k] \leq \E[\mathrm{JNE}_{k-1}]$ for the specific drop policy used | Medium - needs stochastic ordering proof | **Superseded — wrong policy.** Priority-based dropping is not the adopted default: it sheds 73–78% more than necessary against the utilisation-ordered shed-early policy (`drop_sets.py`, cited in `mode_optimization.md` §"Objective Function for Optimization"). Monotonicity of abandonment *with level* is already proven policy-independently by Lemma 1 (`safety_proof.md`) — what remains open is the stochastic-ordering claim *across $k$* for the adopted policy specifically, which is supported empirically (O.1) but not proven. |
 
 ### Optimality Guarantees
 | Question | Description | Difficulty | Status |
 |----------|-------------|------------|--------|
-| **O.2**: What is the optimal trigger point spacing $\{R_1, \dots, R_{k-1}\}$? | For a given objective function, what spacing minimizes expected cost? | Hard - optimization over probability space | Addressed via adaptive weights in metrics_objective.md |
-| **O.2a**: Prove convexity of objective function in trigger spacings | Enables gradient-based optimization | Hard - requires analysis of probability integrals | **Open** |
+| **O.2**: What is the optimal trigger point spacing $\{R_1, \dots, R_{k-1}\}$? | For a given objective function, what spacing minimizes expected cost? | Hard - optimization over probability space | **Resolved: there is no optimisation problem here.** Under the shed-early policy, trigger spacing has *zero* effect on the drop set — confirmed 16/16 task sets, agreeing to six decimal places across $k \in \{2,3,4,5\}$ (`mode_optimization.md` §"Superseded"). The question was well-posed but the premise (spacing matters) is false for the adopted policy. |
+| **O.2a**: Prove convexity of objective function in trigger spacings | Enables gradient-based optimization | Hard - requires analysis of probability integrals | **Moot.** The objective is constant, not merely convex, in trigger spacing under shed-early (see O.2) — there is nothing for a convexity proof to enable. |
 
 ### Complexity Bounds
 | Question | Description | Difficulty | Status |
 |----------|-------------|------------|--------|
-| **O.3**: What is the competitive ratio of greedy drop policies? | How well does priority-based dropping perform vs. optimal offline? | Medium - approximation theory | Related to complexity_analysis.md |
-| **O.3a**: Tight bound for online multi-level scheduling | Compare online algorithm to clairvoyant offline optimal | Medium - adversarial analysis | **Open** |
+| **O.3**: What is the competitive ratio of greedy drop policies? | How well does priority-based dropping perform vs. optimal offline? | Medium - approximation theory | **Empirically bounded, not formally proven.** Stage 3's exhaustive search (`mode_optimization.tex` §"Bounded-Gain Configuration Selection") bounds *any* method's gain over the adopted default at $\leq 0.79\%$ service ratio, everywhere tested — an upper bound by construction, since nothing outperforms exhaustive enumeration. A formal competitive-ratio proof would now only need to explain a small number. |
+| **O.3a**: Tight bound for online multi-level scheduling | Compare online algorithm to clairvoyant offline optimal | Medium - adversarial analysis | **Open.** No formal proof exists; scope is now known to be small (O.3), which may make a loose bound sufficient rather than motivating a tight one. |
 
 ## Completed Work
 
