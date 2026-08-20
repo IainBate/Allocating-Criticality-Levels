@@ -5,11 +5,17 @@
 \usepackage{graphicx}
 \usepackage{hyperref}
 \usepackage{cleveref}
+\usepackage[colorinlistoftodos,textwidth=3.4cm,textsize=footnotesize,disable=false]{todonotes}
 
-\geometry{margin=1in}
+\geometry{margin=1in,right=4.8cm}
 \hypersetup{colorlinks=true, urlcolor=blue}
 
 \input{macros}
+
+% --- Review-pass markup, added for a human review of this draft. Strip this
+% block and every \reviewnote/\decisionnote call before final submission. ---
+\newcommand{\reviewnote}[1]{\todo[color=red!25,bordercolor=red!70!black,caption={Review}]{\textbf{REVIEW --} #1}}
+\newcommand{\decisionnote}[1]{\todo[color=blue!15,bordercolor=blue!60!black,caption={Decision}]{\textbf{DECISION --} #1}}
 
 \title{Choosing an Optimisation Method for Severity-Ladder Design}
 \author{}
