@@ -390,10 +390,11 @@ Select k that maximizes objective while keeping overhead acceptable
      cascade is closed the other way, with evidence rather than by continued absence of
      research: decomposing the same measurement shows a real cascade mechanism could add at
      most 0.04–0.86 percentage points beyond full exit alone, so it is not being built.
-     Hysteresis (a *timed* hold-off, as originally meant here) remains genuinely
-     unbuilt — `ModeChangeProtocol` still has no `exit_time()` — and is now a lower
-     priority than when this question was written, given how much larger the plain
-     evidence-cleared effect turned out to be.
+     Hysteresis (a *timed* hold-off, as originally meant here) is now also built —
+     `simulation.multilevel`'s `exit_policy="hysteresis"` — proven safe for any `hold_off`
+     (Corollary 3) and swept for real across `hold_off` and utilisation: a genuine sweet spot
+     exists and shifts with U (capping the oscillation increase at ≤10% keeps 28–43% of the
+     gain at U=0.6–0.7, only ~10.5% at U=0.9). `docs/exit_strategy_analysis.md`, Result 4.
 
 ### Secondary Questions
 - Does multi-level scheduling reduce oscillation between modes?
