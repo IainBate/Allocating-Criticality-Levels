@@ -1159,6 +1159,74 @@ the two components of the trade honestly rather than combining them into a
 single number this study has not validated a weighting for. All three are
 stated as scope, not as doubt about the results reported within that scope.
 
+\section{Review Notes and Open Decisions}
+\label{sec:review-notes}
+
+\textit{This section exists only for this review pass. Remove it, along with the
+\texttt{todonotes} package and every \texttt{\reviewnote{}}/\texttt{\decisionnote{}} call above,
+once the items below are resolved.}
+
+The margin notes throughout this draft (listed at the front,
+\texttt{\textbackslash listoftodos}) attach to a specific location. A few items don't attach to
+one place, or came up in discussion around this draft rather than in the text itself; they are
+collected here instead of forced into a margin note somewhere.
+
+\subsection{Where to concentrate review time}
+
+Highest value first: the two safety corollaries (Corollary 2, Corollary 3 --
+\texttt{safety\_proof.md}) and the mechanism code they justify
+(\texttt{exit\_if\_idle}, \texttt{\_natural\_level}, \texttt{\_next\_evidence\_reappearance} in
+\texttt{multilevel.py}). These are the highest-stakes additions this pass produced -- safety
+arguments about a real-time scheduling system -- and this is exactly the category where the
+project has a track record of catching real mistakes, including one caught during this pass
+itself (the whole-run TiD overclaim, flagged inline above). The \emph{mechanism} carries strong
+automated assurance already: \texttt{hold\_off=0} and \texttt{hold\_off}$\to\infty$ are verified
+\emph{bit-identical} to \texttt{"amc\_rh"} and \texttt{"idle"} respectively, not merely similar.
+The \emph{proof reasoning} has had one careful pass and one self-correction, which is evidence of
+care but not a substitute for an independent read.
+
+Lower priority: the experiment functions, the reconciliation docs, and the measured data. These
+are backed by 361 passing tests including the equivalence checks above, and are lower-consequence
+if something is off -- a measurement bug shows up as an implausible number, not a safety hole.
+
+\subsection{Untested combinations (proof coverage, not measurement coverage)}
+
+Corollary 2 and Corollary 3's safety arguments are stated generally (they extend to
+$x_{\mathrm{LO}} > 0$ via Corollary 1'(a)), but no empirical trial has actually run
+\texttt{"amc\_rh"} or \texttt{"hysteresis"} with $x_{\mathrm{LO}} > 0$ -- every measured result in
+\Cref{sec:exit-results} uses $x_{\mathrm{LO}} = 0$. If LO-criticality triggering is a direction
+this project wants to keep alive, that combination is unmeasured, not just unreported.
+
+\subsection{Decisions collected from elsewhere in this draft}
+
+\begin{itemize}
+\item \textbf{The $\Phi$ net-verdict} (flagged in \Cref{sec:exit-results}): implement $\Phi$ and
+  re-score, or make an explicit engineering call in prose. Blocks a single recommended
+  configuration for evidence-cleared exit.
+\item \textbf{Adaptive \texttt{hold\_off}} (flagged in \Cref{sec:tempered-exit}): the sweet spot's
+  dependence on $U$ suggests \texttt{hold\_off} might want to be runtime-derived rather than
+  fixed at deploy time. Unscoped, unimplemented -- a candidate for a genuine next phase of work,
+  not an afternoon's addition.
+\item \textbf{Operating point A for the hysteresis sweep}: only point B (termination) was swept;
+  point A (conservative) is untested.
+\end{itemize}
+
+\subsection{Explicitly not recommended, but worth confirming you agree}
+
+Extending \texttt{"amc\_rh"}/\texttt{"hysteresis"} to the \texttt{progressive} policy. The
+cascade-headroom decomposition (\Cref{sec:exit-results}) already suggests very little is left to
+gain there, on top of the open carry-in question that would make it unsafe to deploy without new
+proof work regardless. If you disagree with deprioritising this, say so here rather than
+downstream.
+
+\subsection{Housekeeping, not physics}
+
+This draft's new content (all of \Cref{sec:exit-results} and this section) was written in one
+extended session and compiles cleanly, but has not had the iterate-and-tighten prose pass the
+rest of this paper has had over time. Notation, redundancy between paragraphs, and whether
+\Cref{sec:tempered-exit} is better as its own \texttt{\textbackslash subsection} than a
+\texttt{\textbackslash subsubsection} of Stage 5 are all fair game.
+
 \bibliographystyle{plain}
 \bibliography{project_bib,references}
 
