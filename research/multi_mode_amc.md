@@ -380,10 +380,14 @@ Select k that maximizes objective while keeping overhead acceptable
 
 6. **Can exit be staged?**
    - ~~Yes, with hysteresis providing smooth transitions~~
-   - *Corrected — this was asserted, not researched*: Task 4.2 (exit strategy) never ran,
-     and is currently blocked: `ModeChangeProtocol` has no `exit_time()`, so a hysteresis
-     rule cannot be measured exactly in the simulator (measured to inflate `degraded_ticks`
-     by ~15–20% when approximated). Still genuinely open.
+   - *Corrected, then updated*: this was originally asserted rather than researched, and
+     the general hysteresis/cascade mechanism is still not built (`ModeChangeProtocol` has
+     no `exit_time()`; a hysteresis rule cannot be measured exactly without one). But a
+     pilot (`docs/exit_strategy_analysis.md`) now shows a large, well-resolved effect from
+     just the simplest form of staging — exiting when evidence clears rather than waiting
+     for the queue to idle — for which the mechanism (AMC-RH's exit rule) already exists.
+     "Staged" in the sense of intermediate-level cascade remains open; "staged" in the
+     sense of earlier, evidence-based exit no longer is.
 
 ### Secondary Questions
 - Does multi-level scheduling reduce oscillation between modes?
