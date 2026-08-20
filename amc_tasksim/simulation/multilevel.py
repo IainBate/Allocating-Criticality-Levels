@@ -628,8 +628,20 @@ def simulate_multilevel(
                 trace.append((now, f"level_{target}", -1))
 
     def exit_if_idle(now: int) -> None:
+        """Exit to L0, on idle always, and additionally on cleared evidence
+        under `exit_policy="amc_rh"` -- see MultiLevelResult / the module
+        docstring's "Exit policy" note. Only ever exits straight to L0: a
+        partial demotion to an intermediate level is a different, still-open
+        safety question (safety_proof.md, "Corollary: Evidence-Cleared Exit
+        is Safe" -- scoped explicitly to full exit, not partial).
+        """
         nonlocal level_entered_at
-        if state.level > 0 and not active:
+        if state.level == 0:
+            return
+        exit_now = not active
+        if not exit_now and exit_policy == "amc_rh":
+            exit_now = _natural_level(ladder, taskset, active, state.level, now) == 0
+        if exit_now:
             result.level_ticks[state.level] += now - level_entered_at
             result.level_trans += 1
             state.level = 0
