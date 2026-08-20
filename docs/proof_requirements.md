@@ -193,6 +193,11 @@ Before deploying multi-level scheduling, verify:
 > conditions can only become true when the run-queue shrinks, but a hysteresis or hold-off
 > rule breaks that and was measured to inflate `degraded_ticks` by roughly 15–20%. V.4
 > cannot be verified for a hysteresis-based exit strategy (Phase 4, Task 4.2) until an
-> `exit_time()` method is added alongside `entry_time()`.
+> `exit_time()` method is added alongside `entry_time()`. A pilot measurement
+> (`docs/exit_strategy_analysis.md`) since found this worth prioritising: the current
+> idle-only exit sheds resolvably more LO work than justified at higher utilisation, and
+> for the adopted `shed_early` policy the needed rule is AMC-RH's *existing, proven*
+> early-exit condition, not a new hysteresis design — narrowing what V.4 actually has to
+> verify for the first cut of this work.
 
 
