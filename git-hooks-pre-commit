@@ -16,3 +16,8 @@ fi
 
 # Continue with default git hooks (whitespace check)
 git diff-index --check --cached HEAD --
+if [ $? -ne 0 ]; then
+    echo ""
+    echo "Whitespace check failed (see above). Please fix the issues before committing."
+    exit 1
+fi

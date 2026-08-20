@@ -15,6 +15,11 @@ measure degraded-mode behaviour (NiD, TiD, JNE, LDM, HDM).
 # Install dependencies
 uv sync --all-extras
 
+# Install the pre-commit hook (LaTeX validation + whitespace check —
+# .git/hooks isn't cloned, so this is a one-time step per machine)
+cp git-hooks-pre-commit .git/hooks/pre-commit
+chmod +x .git/hooks/pre-commit
+
 # Run tests
 uv run pytest
 
