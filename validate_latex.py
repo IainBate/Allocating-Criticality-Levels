@@ -97,6 +97,16 @@ def compile_check(tex_path: Path) -> list[str]:
             dest = scratch_dir / item.name
             if item.is_file():
                 shutil.copy2(item, dest)
+            elif item.is_dir():
+                # A document may \input a subdirectory's files (e.g. a
+                # report assembled from other papers' extracted bodies);
+                # skipping directories here silently produced "file not
+                # found" errors that had nothing to do with the document
+                # actually being checked.
+                shutil.copytree(
+                    item, dest,
+                    ignore=shutil.ignore_patterns(".*", "*.pdf", "*.aux", "*.log", "*.bbl", "*.blg", "*.out"),
+                )
 
         proc = subprocess.run(
             [tectonic, "--keep-logs", tex_path.name],
