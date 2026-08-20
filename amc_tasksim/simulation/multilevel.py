@@ -712,6 +712,7 @@ def simulate_multilevel(
             result.level_trans += 1
             state.level = target
             level_entered_at = now
+            evidence_clear_since = None  # escalation means evidence is live again
             # No budget adjustment on escalation: a HI job is entitled to
             # C_i(HI) from release, so there is nothing for a deeper level to
             # grant it. Operating severity survives only as the severity at
