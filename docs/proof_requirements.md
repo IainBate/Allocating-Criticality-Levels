@@ -187,4 +187,12 @@ Before deploying multi-level scheduling, verify:
 - [ ] **V.5**: No priority inversion in intermediate levels
 - [ ] **V.6**: BCET constraints maintained after level transitions
 
+> **Blocked for any timed exit rule.** `safety_proof.md` (Theorem 2 scope note) records
+> that `ModeChangeProtocol` exposes only a `should_exit()` predicate sampled at whatever
+> event the loop reaches next — exact for the three shipped protocols because their exit
+> conditions can only become true when the run-queue shrinks, but a hysteresis or hold-off
+> rule breaks that and was measured to inflate `degraded_ticks` by roughly 15–20%. V.4
+> cannot be verified for a hysteresis-based exit strategy (Phase 4, Task 4.2) until an
+> `exit_time()` method is added alongside `entry_time()`.
+
 
