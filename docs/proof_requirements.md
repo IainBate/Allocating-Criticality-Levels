@@ -114,16 +114,22 @@ now, and by what.
 
 | Category | Count |
 |----------|-------|
-| Proven (conditional on admissible drop sets) | 5 |
+| Proven (conditional on admissible drop sets) | 6 |
 | Explicitly not claimed | 1 |
 | Ladder properties verified by test | 3 |
 | Assumed | 6 |
-| Open | 5 |
+| Answered empirically (not by proof) | 2 (O.1, O.3) |
+| Resolved / moot — premise was false | 2 (O.2, O.2a) |
+| Superseded — asked about the wrong policy | 1 (O.1a) |
+| Open, no answer at all | 1 (O.3a) |
 
 **Status**: the safety argument is now carried by executable checks rather than
 prose — ladder properties (A)-(C) and drop-set admissibility are enforced by
 `tests/scheduling/`, so a regression fails the suite rather than surviving in a
-document. The open questions below remain open.
+document. Of the original six open questions, four have since been answered or
+retired by the revised protocol (`mode_optimization.tex`) rather than by the
+proof techniques originally proposed for them; only O.3a remains genuinely
+open. See the annotated table above for what changed and why.
 
 ## Proof Framework for Remaining Questions
 
