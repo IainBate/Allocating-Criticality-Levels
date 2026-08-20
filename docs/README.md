@@ -85,13 +85,18 @@ The primary research plan that outlines the entire project structure:
   to +27% service ratio, 11 of 16 cells practically significant — the largest exit-related
   effect this project has measured. It comes with a real, equally-resolved cost: level
   transitions rise 20–87% in lockstep with the benefit, reported alongside it rather than
-  netted against an unvalidated `Φ` weighting. Separately, decomposing the same measurement
-  for `progressive` shows a genuine cascade mechanism could add at most 0.04–0.86 percentage
-  points beyond full exit alone — below threshold everywhere, closing that question the same
-  way Stage 3 closed drop-strategy search, without building or proving it. See
-  `exit_strategy_analysis.md` for the full account, including a proof overclaim caught and
-  corrected while writing Corollary 2 (whole-run TiD is not proven to only decrease, though
-  safety does not depend on it).
+  netted against an unvalidated `Φ` weighting. A tempered variant (`exit_policy="hysteresis"`)
+  now answers that trade-off directly: proven safe for any `hold_off` by the same inheritance
+  argument (Corollary 3), and swept for real (`exit_opportunity.hysteresis_sweep`) across
+  `hold_off` and utilisation — a genuine sweet spot exists (churn falls faster than benefit as
+  `hold_off` grows), and it shifts with U: capping the oscillation increase at ≤10% keeps
+  28–43% of the gain at U=0.6–0.7 but only ~10.5% at U=0.9, needing a 2–8× larger `hold_off`
+  to get there. Separately, decomposing the earlier measurement for `progressive` shows a
+  genuine cascade mechanism could add at most 0.04–0.86 percentage points beyond full exit
+  alone — below threshold everywhere, closing that question the same way Stage 3 closed
+  drop-strategy search, without building or proving it. See `exit_strategy_analysis.md` for
+  the full account, including a proof overclaim caught and corrected while writing Corollary 2
+  (whole-run TiD is not proven to only decrease, though safety does not depend on it).
 
 ---
 
