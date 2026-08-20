@@ -439,6 +439,44 @@ class MultiLevelResult:
         return 100.0 * self.overdegraded_level_ticks / depth if depth else 0.0
 
 
+def _natural_level(
+    ladder: SeverityLadder,
+    taskset: TaskSet,
+    active: list[MultiLevelJob],
+    level: int,
+    now: int,
+) -> int:
+    """The deepest level currently justified by active, eligible evidence.
+
+    `escalate_if_triggered` asks "is level x+1 justified" while walking up.
+    This asks the same question while walking down from the current level: for
+    each y <= level, is there still an active, eligible job whose threshold for
+    y has been reached? `state.level` is a ratchet -- it only rises within a
+    degraded excursion, and resets to 0 only on a full idle instant -- so it
+    can lag behind what current evidence alone would justify once the job that
+    caused an escalation completes while the system remains at that level.
+    This recovers that lag as a number instead of leaving it unmeasured.
+
+    A job whose threshold justifies level y also justifies every shallower
+    level y' < y: thresholds are non-decreasing in severity for a fixed task
+    (ladder property (B)), and `may_trigger` eligibility at y implies
+    eligibility at y' < y (drop sets are nested, and x_lo is a single cutoff).
+    So the set of levels justified by the active population is a prefix of
+    [0, level], and the search below can stop at the first (deepest-first) hit.
+    """
+    for y in range(level, 0, -1):
+        thresholds = ladder.thresholds[y - 1]
+        for job in active:
+            if not ladder.may_trigger(taskset, job.task_id, y):
+                continue
+            th = thresholds[job.task_id]
+            if math.isinf(th):
+                continue
+            if job.busy_start + int(math.ceil(th)) <= now:
+                return y
+    return 0
+
+
 def _draw_exec_time(rng: np.random.Generator, taskset: TaskSet, i: int, hi_behaviour: bool) -> int:
     """Draw a job's execution time -- identical model to engine.py."""
     c_lo = taskset.C_lo[i]
