@@ -892,6 +892,13 @@ regime to favour, not a free parameter fixed once. An interactive rendering
 of the full sweep (both metrics, both regimes, all four $U$ values) is
 available alongside this project's supporting documentation
 (\texttt{docs/exit\_strategy\_analysis.md}, ``Result 4'').
+\decisionnote{The data suggest \texttt{hold\_off} shouldn't really be one fixed constant --
+it wants to track something like current utilisation. Worth exploring: could
+\texttt{hold\_off} be derived at runtime from an observable proxy (recent trigger rate,
+occupancy) rather than fixed at deploy time? That's unimplemented and unmeasured -- a genuine
+next phase, not a small addition. Separately, and smaller: this sweep only covers operating
+point B (termination); point A (conservative) hasn't been swept, so it isn't known whether the
+same U-dependence shows up there.}
 
 \textbf{Progressive: cascade adds almost nothing beyond full exit alone.} The
 diagnostic upper bound (before the mechanism existed) suggested progressive's
