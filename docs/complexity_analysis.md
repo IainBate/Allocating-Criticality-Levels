@@ -173,7 +173,8 @@ job.busy_start = current_time if queue_empty else queue[-1].busy_start
 | Job completion | O(1) | O(1) | 1× |
 | Mode entry trigger check | O(n) | O(k × n) | k× (k typically 2-4) |
 | Level transition drop decision | - | O(m log m) worst case | depends on strategy |
-| Exit decision | O(1) | O(n) with hysteresis | variable |
+| Exit decision (check) | O(1) | O(1) idle / O(k×n) evidence-cleared | same class as entry |
+| Mode switch (once decided) | O(1) | O(1) -- fixed scalar updates, no iteration | 1× |
 
 ## Practical Complexity Analysis
 
