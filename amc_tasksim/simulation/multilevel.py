@@ -676,6 +676,7 @@ def simulate_multilevel(
     seq = 0
     level_entered_at = 0  # when the CURRENT level was entered, for level_ticks accounting
     was_overdegraded = False  # for overdegraded_events: counts 0 -> positive transitions
+    evidence_clear_since: Optional[int] = None  # exit_policy="hysteresis" bookkeeping only
 
     def escalate_if_triggered(now: int) -> None:
         """Escalate one level if the next level's threshold is already reached.
