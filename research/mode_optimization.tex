@@ -803,6 +803,13 @@ matters less than service loss and time degraded -- but a $20$--$87\%$ relative
 increase is large enough that this prior should be checked against the
 combined objective explicitly before the result is presented as an
 unqualified win, not assumed from the weight alone.
+\decisionnote{No implementation of $\Phi$ exists in the codebase to check this against (Stages
+1--4 reported service ratio directly, never a combined score). Two ways forward: (a) implement
+$\Phi$ with metrics\_objective.md's adaptive weights and re-score every exit-policy result
+already measured, or (b) skip $\Phi$ and make an explicit engineering call in prose (``we accept
+up to X\% more transitions for Y\% service gain''). (a) is more defensible but is new
+implementation work with its own validation burden; (b) is faster but is a judgement call this
+document has so far declined to make unilaterally. Which do you want?}
 
 \subsubsection{Tempering the churn: a hold-off, and where its sweet spot moves}
 \label{sec:tempered-exit}
