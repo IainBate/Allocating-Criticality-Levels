@@ -559,6 +559,8 @@ def simulate_multilevel(
     Returns:
         A :class:`MultiLevelResult`.
     """
+    if exit_policy not in ("idle", "amc_rh"):
+        raise ValueError(f"Unknown exit_policy: {exit_policy!r}")
     if not taskset.priority:
         from amc_tasksim.scheduling.priority import assign_deadline_monotonic
 
