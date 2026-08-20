@@ -685,7 +685,7 @@ def simulate_multilevel(
         cascading escalations at the same instant are each individually
         applied -- mirrors engine.py's enter_if_triggered.
         """
-        nonlocal level_entered_at
+        nonlocal level_entered_at, evidence_clear_since
         while state.level < k - 1:
             target = state.level + 1
             thresholds = ladder.thresholds[target - 1]
