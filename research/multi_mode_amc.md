@@ -173,6 +173,15 @@ Task i:
 
 ### Phase 3: Optimal Mode Design
 
+> **Status.** Superseded by the revised protocol in `../research/mode_optimization.tex`
+> §"Revised Protocol" — see `docs/mode_optimization.md` §"Superseded" for the full account.
+> In short: Tasks 3.1/3.2 below (trigger spacing, mode count, and choosing among the
+> methods table in Task 3.3) turned out to have a vacuous answer under the adopted
+> shed-early policy, so the method-comparison question retired *with evidence* rather than
+> being run. What Phase 3 actually established is the regime map (Stage 2): the scheme
+> beats two-level AMC-RA by +2.4% to +27.3%, driven by drop policy and operating point, not
+> by anything in this section.
+
 #### Task 3.1: Identify Optimal Number of Modes (R_level_X = R_trigger)
 **Objective**: Determine the optimal number of degradation levels when all intermediate triggers equal the full trigger point.
 
