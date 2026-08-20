@@ -183,21 +183,24 @@ Before deploying multi-level scheduling, verify:
 - [ ] **V.1**: HI-criticality response time analysis matches paper (AMC-RH Appendix A)
 - [ ] **V.2**: Trigger point $R_x$ correctly computed from busy period start times
 - [ ] **V.3**: Drop policy at level $L_x$ produces subset of drops at $L_{x+1}$
-- [ ] **V.4**: Exit condition for $L_{k-1}$ matches AMC-RH (idle instant)
+- [x] **V.4**: Exit condition for $L_{k-1}$ matches AMC-RH (idle instant) — done for
+      `exit_policy="idle"` (unchanged shipped behaviour) and, additionally, verified
+      bit-identical to `engine.py`'s `AMC_RH` for `exit_policy="amc_rh"` at k=2
+      (`test_k2_full_drop_amc_rh_exit_reproduces_amc_rh_exactly`). Proven safe by
+      `safety_proof.md`'s Corollary 2, scoped to full exit only.
 - [ ] **V.5**: No priority inversion in intermediate levels
 - [ ] **V.6**: BCET constraints maintained after level transitions
 
-> **Blocked for any timed exit rule.** `safety_proof.md` (Theorem 2 scope note) records
-> that `ModeChangeProtocol` exposes only a `should_exit()` predicate sampled at whatever
-> event the loop reaches next — exact for the three shipped protocols because their exit
-> conditions can only become true when the run-queue shrinks, but a hysteresis or hold-off
-> rule breaks that and was measured to inflate `degraded_ticks` by roughly 15–20%. V.4
-> cannot be verified for a hysteresis-based exit strategy (Phase 4, Task 4.2) until an
-> `exit_time()` method is added alongside `entry_time()`. A pilot measurement
-> (`docs/exit_strategy_analysis.md`) since found this worth prioritising: the current
-> idle-only exit sheds resolvably more LO work than justified at higher utilisation, and
-> for the adopted `shed_early` policy the needed rule is AMC-RH's *existing, proven*
-> early-exit condition, not a new hysteresis design — narrowing what V.4 actually has to
-> verify for the first cut of this work.
+> **Still blocked for a timed exit rule specifically.** `safety_proof.md` (Theorem 2 scope
+> note) distinguishes two cases. Evidence-cleared exit (event-triggered: the condition
+> becomes true only when a justifying job is removed, itself an already-visited event) is
+> exact without `exit_time()` and is now implemented, tested, and proven — see V.4 above.
+> A hysteresis or hold-off rule (time-triggered: the condition becomes true at a pure clock
+> instant nothing else schedules) is the case that remains blocked, and is now a lower
+> priority than when this was written: `docs/exit_strategy_analysis.md` measured
+> evidence-cleared exit's effect at +2% to +27% service ratio, an order of magnitude above
+> what hysteresis would plausibly add, at the cost of 20–87% more mode changes — a real
+> trade this document's V.4/V.6-style checks should extend to cover before a hysteresis
+> variant is considered on top of it.
 
 
