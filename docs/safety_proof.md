@@ -273,6 +273,86 @@ original Corollary 1 is recovered verbatim.
 > one job. $x_{\mathrm{LO}} = 1$ and $2$ give identical results, so this is not
 > an artefact of reach. Keep $x_{\mathrm{LO}} = 0$.
 
+## Corollary 2: Evidence-Cleared Exit Is Safe
+
+**Motivation.** `docs/exit_strategy_analysis.md` measures that the shipped
+idle-only exit rule sheds resolvably more LO work than the *evidence* for
+staying degraded actually justifies, once the job that triggered entry has
+itself completed but the run-queue backlog it left behind has not yet
+drained. This corollary licenses acting on that measurement for exactly one
+new exit rule — full exit to $L_0$ — and explicitly not for a broader class.
+
+**Definition.** Let $\mathrm{natural}(t)$ be the deepest level whose evidence
+is currently live at $t$: the greatest $y \leq \mathrm{state.level}(t)$ such
+that some active job $\tau_i$ eligible for rung $y$ (in the sense of
+`may_trigger` — Corollary 1'(b)'s admission test) has
+$\mathrm{busy\_start}_i + R_i(\chi_y) \leq t$. At $x_{\mathrm{LO}} = 0$ this is
+exactly AMC-RH's own trigger predicate, restricted to HI-criticality tasks;
+Corollary 1'(a) extends it verbatim to $x_{\mathrm{LO}} > 0$. **Evidence-cleared
+exit**: leave every degraded level for $L_0$ the instant $\mathrm{natural}(t)$
+reaches $0$, rather than waiting for an idle instant.
+
+**Statement.** Replacing idle-only exit with evidence-cleared exit changes
+none of Theorem 1, the LO-deadline corollary, Lemma 1, or Corollary 1' — every
+property proven above for the shipped scheme continues to hold — and it can
+only *reduce* time spent degraded, never increase it.
+
+*Proof, safety*: Theorem 1's argument is stated per level: while the system
+occupies a level $x \geq 1$, admissibility clause 1 grants every retained task
+at that level's operating severity budget, independent of how long the system
+remains at $x$ or what causes it to leave. Exit timing is therefore already
+outside that argument's scope for as long as the system is degraded. The only
+thing exit timing changes is what rule governs releases *after* the system
+reaches $L_0$ — and $L_0$ is unrestricted normal mode, identical under this
+scheme and under classic AMC-RH, with no drop set and no level-based
+obligation active. Evidence-cleared exit, restricted to the predicate's
+$x_{\mathrm{LO}} = 0$ form, *is* AMC-RH's own exit rule — not merely similar to
+it, verified bit-for-bit in `tests/simulation/test_multilevel.py`
+(`test_k2_full_drop_amc_rh_exit_reproduces_amc_rh_exactly`, k=2,
+`drop_policy="full"`, exact reproduction of `engine.py`'s `AMC_RH` across a
+full task-set population and eight seeds). So the post-exit period is governed
+by AMC-RH's own already-published safety argument, not a new one. The two
+halves meet at exactly the instant $\mathrm{natural}(t)$ reaches $0$, which
+both arguments agree is safe to be at $L_0$ from — Theorem 1 does not require
+staying degraded past that instant, and AMC-RH's own theorem is precisely the
+claim that leaving at that instant is safe. No instant is left uncovered by
+either argument.
+
+Nothing already admitted is affected either way: a drop/admit decision is made
+once, at a job's release, using whichever level is current *then*
+(`multilevel.py`'s release loop) and is never revisited for a job already
+running. Exiting sooner only changes the level seen by releases that have not
+happened yet, which can only *admit* a job an unchanged rule would have
+dropped — never un-admit or retroactively endanger one already accepted. The
+unconditional LO-deadline corollary (termination at the job's own deadline,
+checked per-job regardless of level history) is untouched by the same
+argument. $\square$
+
+*Proof, TiD does not increase*: $\mathrm{active} = \emptyset \implies
+\mathrm{natural}(t) = 0$ trivially (no active job, so no active job can carry
+live evidence). So every idle instant is also an evidence-cleared instant, and
+the evidence-cleared exit condition can only fire at or before the idle exit
+instant on the same arrival sequence and execution times. Summing over the
+run, $\mathrm{TiD}_{\text{evidence-cleared}} \leq \mathrm{TiD}_{\text{idle}}$.
+$\square$ (Empirically confirmed, not merely a corollary of the proof:
+`test_amc_rh_exit_policy_never_stays_degraded_longer_than_idle_exit`.)
+
+> **Scope — this does not cover partial demotion.** The proof above depends on
+> $L_0$ specifically: it is the one level whose rule for future releases (none)
+> is independent of how the system arrived there. An intermediate level $y$
+> has no such property — `drop_sets[y-1]`'s admissibility was certified by
+> `drop_ladder`'s carry-in analysis (task_model.tex, "Shed-Aware Response
+> Time") for a system that *escalated* to $y$ through $y-1, y-2, \ldots$ in
+> order, carrying forward whatever backlog existed at each step in turn.
+> Landing on $y$ by *demoting* from a deeper level, with a backlog admitted
+> under that deeper level's own (differently-shaped) drop set, is a state the
+> carry-in analysis was never verified against — the certificate does not
+> obviously transfer. Partial demotion to an intermediate level therefore
+> remains exactly as open as it was before this corollary, and is not licensed
+> by it. `docs/exit_strategy_analysis.md` reports how much additional service
+> loss such a mechanism could plausibly recover, as a diagnostic estimate, not
+> a safety argument.
+
 ## Theorem 3: Schedulability Preservation
 
 The previous statement of this theorem argued that "no LO task experiences
