@@ -114,22 +114,42 @@ for job in active_LO_jobs:
 
 #### 4. Exit Decision
 
-**Baseline**:
+**Baseline** (`exit_policy="idle"`, `multilevel.py`'s `exit_if_idle`):
 ```python
-# Check for idle instant
-return len(active_jobs) == 0
+exit_now = not active
 ```
-- **Time**: O(1)
+- **Time**: O(1) -- Python list truthiness, verified against the actual implementation
+  (`simulation/multilevel.py:675`), not just sketched.
 
-**Multi-Level with Hysteresis**:
+**Evidence-cleared exit** (`exit_policy="amc_rh"`, built and proven safe --
+`safety_proof.md` Corollary 2 -- since this section was first written as a hysteresis
+sketch that was never implemented):
 ```python
-# Check if we've been in current level long enough
-if time_in_level > hysteresis_threshold:
-    return len(active_HI_jobs) == 0 or all_jobs_under_trigger(level)
-return False
+exit_now = not active or _natural_level(ladder, taskset, active, state.level, now) == 0
 ```
-- **Time**: O(n) to scan active HI jobs
-- **Space**: O(1) for timer state
+- **Time**: O(k × n) worst case -- `_natural_level` walks levels `state.level` down to 1,
+  scanning `active` at each (`simulation/multilevel.py:504-513`) -- the *same complexity
+  class* §"Mode Entry Decision" above already assigns to the trigger check, not a new one.
+  In the common case it terminates in 1-2 outer iterations rather than k: the measurement in
+  `docs/exit_strategy_analysis.md` found 92-97% of the diagnostic's opportunity is
+  "full exit" (`natural_level` drops straight from `state.level` to 0), not a partial,
+  level-by-level descent.
+
+**A distinction worth keeping separate: the *decision* costs more per event under
+`exit_policy="amc_rh"`; the *switch itself*, once decided, does not.** Every place
+`state.level` is mutated (`escalate_if_triggered` at `multilevel.py:655`,
+`exit_if_idle` at `multilevel.py:681` -- the only two sites, confirmed by grep) does the
+same fixed handful of scalar updates -- `state.level`, `level_entered_at`,
+`result.level_trans`, `result.level_ticks[...]` -- with **no iteration over `active` or
+any drop set**. The switch is O(1) regardless of policy. What `exit_policy="amc_rh"`
+changes is that *every event while degraded* pays the O(k × n) check above instead of
+idle's O(1) one, whether or not that event ends in a switch -- and since k ≤ 4, n ≤ 20 is
+exactly the regime §"Average Case" below already calls negligible (~20 extra comparisons),
+this does not change once transitions become more frequent: each event's check is bounded
+the same way whether it succeeds or not, so a higher `level_trans` count under
+`exit_policy="amc_rh"` (`docs/exit_strategy_analysis.md`: +20-87%) does not compound into a
+worse asymptotic cost. More switches, at the same bounded per-event price, not a
+proportionally pricier switch.
 
 #### 5. Busy Period Start Time Inheritance
 
