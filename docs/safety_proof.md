@@ -294,8 +294,11 @@ reaches $0$, rather than waiting for an idle instant.
 
 **Statement.** Replacing idle-only exit with evidence-cleared exit changes
 none of Theorem 1, the LO-deadline corollary, Lemma 1, or Corollary 1' — every
-property proven above for the shipped scheme continues to hold — and it can
-only *reduce* time spent degraded, never increase it.
+safety property proven above for the shipped scheme continues to hold
+unconditionally. Within a single degraded excursion, evidence-cleared exit's
+condition is weaker than idle's and so is reached no later. It is *not*
+claimed that total TiD over a whole run can only fall — see the proof for
+exactly where that stronger claim breaks and why safety does not need it.
 
 *Proof, safety*: Theorem 1's argument is stated per level: while the system
 occupies a level $x \geq 1$, admissibility clause 1 grants every retained task
