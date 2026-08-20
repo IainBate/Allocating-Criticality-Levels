@@ -989,7 +989,24 @@ optimising trigger spacing to get it -- it came from the choice of drop policy
 operating point (conservative versus termination), which Stage 1 and Stage 2
 characterise directly.
 
-Two things are not yet established and are named rather than glossed over.
+Stage 5 adds a second positive result Stages 0--4 were not designed to look
+for: evidence-cleared exit beats the shipped idle-only exit on service ratio
+in $16$ of $16$ cells tested, $11$ practically significant, up to
+$+27\%$ -- the largest exit-related effect this study has measured, and
+provably safe for the adopted shed-early policy by inheritance from AMC-RH's
+own existing argument (Corollary 2), not a new one. It comes with a real,
+equally well-resolved cost: level transitions rise $20$--$87\%$ across the same
+cells, growing alongside the benefit rather than independently of it. Whether
+the net trade is worth taking against the full objective $\Phi$ is not yet
+settled here (\Cref{sec:exit-results}); what is settled is that neither number
+can be reported without the other. Progressive's cascade-exit question, by
+contrast, \emph{is} settled: decomposing the same measurement shows a real
+cascade mechanism could add at most $0.86$ percentage points beyond full exit
+alone, in every cell tested -- below threshold everywhere, closing that
+question the same way Stage 3 closed drop-strategy search, without needing to
+build or prove the mechanism.
+
+Three things are not yet established and are named rather than glossed over.
 First, the regime map's grid is coarse ($U \in \{0.6,0.7,0.8,0.9\}$, two
 deadline regimes, one progressive spacing) -- it is not a claim that every
 point in the continuous $(U, D_i/T_i, CF, f_p)$ space behaves this well, only
@@ -999,8 +1016,11 @@ progressive feasibility falls as low as $50\%$ at the hardest utilisation and
 deadline combinations tested, and lower still where the population itself
 becomes scarce ($U=0.9$, tight); the regime map's progressive rows are
 therefore conditioned on a shrinking, and not necessarily representative,
-subset of the population as the regime hardens. Both are stated as scope, not
-as doubt about the results reported within that scope.
+subset of the population as the regime hardens. Third, Stage 5's net verdict
+on evidence-cleared exit is unresolved by design, not by omission: it reports
+the two components of the trade honestly rather than combining them into a
+single number this study has not validated a weighting for. All three are
+stated as scope, not as doubt about the results reported within that scope.
 
 \bibliographystyle{plain}
 \bibliography{project_bib,references}
