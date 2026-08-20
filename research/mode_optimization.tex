@@ -832,7 +832,14 @@ the instant it fires, never on the hold-off bookkeeping alone, so an
 imprecise or delayed wake-up can only delay an individually-safe exit, never
 bring one forward into unsafe territory. This is Corollary 3 of the safety
 proof (\texttt{safety\_proof.md}); it needs nothing beyond what Corollary 2
-already established.
+already established.\reviewnote{Corollary 3 leans entirely on the ``fresh check gates every
+exit'' property of \texttt{exit\_if\_idle} in \texttt{multilevel.py} -- worth reading that
+function directly (not just this prose summary) to confirm the hold-off bookkeeping
+(\texttt{evidence\_clear\_since}) genuinely never substitutes for the fresh
+\texttt{\_natural\_level} check, including on the escalation-reset path. Also worth checking:
+does the scope restriction to full-exit-only (inherited from Corollary 2) actually still hold
+here, or does chaining a delay onto the exit introduce anything Corollary 2 didn't have to
+consider?}
 
 A real, paired sweep -- \texttt{exit\_opportunity.hysteresis\_sweep}, not a
 retrospective estimate -- measured \texttt{hold\_off} $\in \{0, 25, 50, 100,
