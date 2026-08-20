@@ -133,15 +133,24 @@ measure is no greater. $\square$
 > quantity to measure (TiD), not to bound by argument.
 >
 > The exit rule also has to be stated, because the containment above assumes
-> both schemes leave on the same condition. Note further that an exit rule with
-> a *temporal* component (a hysteresis or hold-off) is not currently expressible
-> exactly in the simulator: `ModeChangeProtocol` exposes `entry_time()` as a
-> scheduled instant but only a `should_exit()` predicate, which is sampled at
-> whatever event the loop reaches next. For the three shipped protocols this is
-> exact, because their exit conditions can only become true when the run-queue
-> shrinks — itself an event. A hysteresis rule breaks that and inflates
-> `degraded_ticks` by roughly 15–20%. Adding `exit_time()` is a prerequisite for
-> any k-level demotion policy with a timer.
+> both schemes leave on the same condition. Two exit rules beyond the three
+> shipped protocols have since been examined, with different outcomes worth
+> distinguishing:
+>
+> - **Evidence-cleared exit** (`exit_policy="amc_rh"` in `multilevel.py`, full
+>   exit to $L_0$ the instant no active eligible job's threshold remains met)
+>   is event-triggered, not time-triggered: the condition can only become true
+>   when a justifying job is removed from the run-queue — itself an event the
+>   loop already visits, the same property that makes the three shipped exit
+>   rules exact. It is proven safe below (the evidence-cleared-exit corollary).
+> - An exit rule with a *temporal* component (a hysteresis or hold-off) is a
+>   different case and remains blocked: its condition becomes true at a pure
+>   clock instant nothing else schedules, which is not currently expressible
+>   exactly in the simulator (`ModeChangeProtocol` exposes `entry_time()` as a
+>   scheduled instant but only a `should_exit()` predicate, sampled at whatever
+>   event the loop reaches next). Measured to inflate `degraded_ticks` by
+>   roughly 15–20% when approximated without a scheduled event. Adding
+>   `exit_time()` is still a prerequisite for this case specifically.
 
 ## Corollary 1: JNE Bound
 
