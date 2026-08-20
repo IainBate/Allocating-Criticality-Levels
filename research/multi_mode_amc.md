@@ -247,9 +247,14 @@ Select k that maximizes objective while keeping overhead acceptable
 > configuration at ≤0.79%, an order of magnitude under this study's 5% threshold — closing
 > the comparison without needing to run the strategies enumerated below individually.
 > Priority-based dropping specifically is *not* competitive (73–78% more shedding than
-> necessary), which corrects §5 Q3 below. Task 4.2 (exit strategy) remains genuinely open
-> and is additionally blocked: see the status note in `docs/README.md`'s Phase 4 section
-> and the `exit_time()` gap recorded in `docs/safety_proof.md` (Theorem 2 scope note).
+> necessary), which corrects §5 Q3 below. Task 4.2 (exit strategy) has a strong pilot
+> result now (`docs/exit_strategy_analysis.md`): the current direct-exit-on-idle rule
+> sheds 15–21% more LO work than live evidence justifies at U=0.9, resolved above the 5%
+> floor in 8 of 16 cells — the largest exit-related effect this project has measured. For
+> the adopted `shed_early` policy this turns out not to be a cascade question at all (one
+> drop set, so the only lever is early exit to L0), and AMC-RH's early-exit rule already
+> exists and is already proven — see that document's "The reframe" section. What remains
+> is building it as a scheduled event in `multilevel.py` and re-measuring the actual gain.
 
 #### Task 4.1: LO Task Assignment to Criticality Levels
 **Objective**: Determine optimal assignment of low-criticality tasks to degradation levels.
