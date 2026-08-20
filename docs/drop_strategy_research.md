@@ -4,6 +4,18 @@
 
 This phase investigates how to optimally select which LO-criticality tasks to drop at each degradation level transition.
 
+> **Status.** Both tasks below are now answered; this document is the original plan, kept
+> for the record rather than rewritten. **Task 4.1**: Stage 3 of the revised protocol
+> bounds any drop-strategy search's gain over the default at ≤0.79% — see `docs/README.md`'s
+> Phase 4 status. **Task 4.2**: `docs/exit_strategy_analysis.md` and `mode_optimization.tex`
+> §"Stage 5" — evidence-cleared exit (Strategy... below, "Direct to L_0", triggered on
+> cleared evidence rather than an idle instant) is built, proven safe, and measured at +2%
+> to +27% service ratio against a real cost of 20–87% more mode changes; cascade
+> (intermediate-level demotion) is closed with evidence rather than built, at ≤0.86
+> percentage points of headroom beyond full exit. Hysteresis specifically (Strategy C
+> below) remains unbuilt and is now lower priority given how much larger the plain
+> evidence-cleared effect turned out to be.
+
 ---
 
 ## Task 4.1: LO Task Assignment to Criticality Levels
