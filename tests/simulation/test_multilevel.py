@@ -447,3 +447,113 @@ def test_the_two_operating_points_differ_in_the_expected_direction():
         if termination.drop_sets[0] < conservative.drop_sets[0]:
             strictly_more += 1
     assert strictly_more, "the two points never differed; the test proves nothing"
+
+
+# ---------------------------------------------------------------------------
+# Cascade-opportunity diagnostic (_natural_level, overdegraded_* metrics)
+# ---------------------------------------------------------------------------
+
+
+class _FakeTaskSet:
+    """Stands in for TaskSet: `may_trigger` only reads `.criticality`."""
+
+    def __init__(self, criticality: list[str]):
+        self.criticality = criticality
+
+
+def _job(task_id: int, busy_start: int, criticality: str = "HI") -> MultiLevelJob:
+    return MultiLevelJob(
+        task_id=task_id, seq=0, release=busy_start, deadline=10_000,
+        c_lo=1, c_hi=5, criticality=criticality, priority=task_id,
+        exec_time=5, budget=5, busy_start=busy_start,
+    )
+
+
+def _ladder(x_lo: int = 0) -> SeverityLadder:
+    # k=3: thresholds[0] = level-1 thresholds, thresholds[1] = level-2.
+    # task 0 = HI (thresholds 10, 20); task 1 = LO (thresholds 5, 15).
+    return SeverityLadder(
+        severities=[0.0, 0.3],
+        operating_severities=[0.3, 1.0],
+        thresholds=[[10, 5], [20, 15]],
+        drop_sets=[set(), set()],
+        x_lo=x_lo,
+    )
+
+
+def test_natural_level_zero_before_any_threshold_reached():
+    ladder = _ladder()
+    ts = _FakeTaskSet(["HI", "LO"])
+    active = [_job(0, busy_start=0)]
+    assert _natural_level(ladder, ts, active, level=1, now=5) == 0
+
+
+def test_natural_level_tracks_the_deepest_currently_justified_level():
+    ladder = _ladder()
+    ts = _FakeTaskSet(["HI", "LO"])
+    active = [_job(0, busy_start=0)]
+    # Threshold for level 1 is 10, for level 2 is 20 (task 0).
+    assert _natural_level(ladder, ts, active, level=2, now=9) == 0
+    assert _natural_level(ladder, ts, active, level=2, now=15) == 1
+    assert _natural_level(ladder, ts, active, level=2, now=25) == 2
+
+
+def test_natural_level_drops_when_the_justifying_job_is_removed():
+    """This is the whole point of the diagnostic: state.level is a ratchet and
+    does not follow this drop, which is exactly the gap it measures."""
+    ladder = _ladder()
+    ts = _FakeTaskSet(["HI", "LO"])
+    assert _natural_level(ladder, ts, [], level=2, now=25) == 0
+
+
+def test_natural_level_ignores_ineligible_tasks():
+    """A LO-criticality task's threshold being reached does not count while
+    x_lo=0 -- only HI tasks (or LO tasks at or below x_lo) may justify a rung."""
+    ladder = _ladder(x_lo=0)
+    ts = _FakeTaskSet(["HI", "LO"])
+    active = [_job(1, busy_start=0, criticality="LO")]  # task 1's L1 threshold is 5
+    assert _natural_level(ladder, ts, active, level=1, now=100) == 0
+
+    ladder_lo = _ladder(x_lo=1)
+    assert _natural_level(ladder_lo, ts, active, level=1, now=100) == 1
+
+
+def test_natural_level_takes_the_max_across_active_jobs():
+    ladder = _ladder()
+    ts = _FakeTaskSet(["HI", "LO"])
+    # task 1 (LO, ineligible here) reaches its threshold early but cannot
+    # justify anything; task 0 (HI) reaches level 1 only.
+    active = [_job(0, busy_start=0), _job(1, busy_start=0, criticality="LO")]
+    assert _natural_level(ladder, ts, active, level=2, now=15) == 1
+
+
+def test_measure_cascade_opportunity_does_not_change_core_metrics(tasksets):
+    """The diagnostic must be purely additive: enabling it changes none of the
+    metrics that existed before it, for the same task set, ladder and seed."""
+    ts = tasksets[0]
+    ladder = build_ladder(ts, [0.0, 0.3])
+    off = simulate_multilevel(ts, ladder, duration=DURATION, seed=3, fp=FP,
+                               measure_cascade_opportunity=False)
+    on = simulate_multilevel(ts, ladder, duration=DURATION, seed=3, fp=FP,
+                              measure_cascade_opportunity=True)
+    for field in FIELDS + ["level_ticks", "wasted_cpu", "lo_completed", "level_trans"]:
+        assert getattr(off, field) == getattr(on, field), field
+    assert off.overdegraded_ticks == 0  # never measured, must read as the default
+
+
+def test_overdegraded_metrics_are_internally_consistent(tasksets):
+    """Broad sanity check across real task sets: the gap is always a genuine
+    subset of degraded time, never exceeding it, and percentages stay in
+    range -- catches an accounting error the narrow unit tests above would
+    each individually miss."""
+    for ts in tasksets[:6]:
+        ladder = build_ladder(ts, [0.0, 0.3])
+        assert ladder is not None
+        r = simulate_multilevel(ts, ladder, duration=DURATION, seed=2, fp=FP,
+                                 measure_cascade_opportunity=True)
+        degraded_ticks = sum(r.level_ticks[1:])
+        assert 0 <= r.overdegraded_ticks <= degraded_ticks
+        assert 0 <= r.overdegraded_pct <= 100.0
+        assert 0 <= r.overdegraded_level_pct <= 100.0
+        assert r.max_overdegraded_gap <= ladder.k - 1
+        assert r.overdegraded_events <= r.level_trans
