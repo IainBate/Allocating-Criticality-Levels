@@ -568,6 +568,7 @@ def simulate_multilevel(
     active: list[MultiLevelJob] = state.active
     seq = 0
     level_entered_at = 0  # when the CURRENT level was entered, for level_ticks accounting
+    was_overdegraded = False  # for overdegraded_events: counts 0 -> positive transitions
 
     def escalate_if_triggered(now: int) -> None:
         """Escalate one level if the next level's threshold is already reached.
