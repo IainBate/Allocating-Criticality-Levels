@@ -520,6 +520,14 @@ def simulate_multilevel(
         fp: Per-job probability a HI-criticality release exhibits HI behaviour.
         release_offsets: Per-task phase of the first release.
         trace: If given, appended with (time, event, task_id) tuples.
+        measure_cascade_opportunity: If True, also compute the `overdegraded_*`
+            diagnostics on the result -- how much of the run's degraded time
+            was spent deeper than currently active evidence justifies, an
+            upper bound on what a hypothetical instant cascade-exit could
+            recover (see `_natural_level`). Off by default: it adds an
+            O(k x n) check per event, on top of the existing escalation
+            check of the same order, so runs that do not need it do not pay
+            for it.
 
     Returns:
         A :class:`MultiLevelResult`.
