@@ -410,6 +410,17 @@ class MultiLevelResult:
     #: dropped *during* that tail is a real, countable instance of exactly the
     #: service loss a smarter exit rule could plausibly have avoided.
     overdegraded_jne: int = 0
+    #: Split of overdegraded_jne by what kind of exit would have been needed
+    #: to avoid it. `overdegraded_jne_full_exit`: natural_level was 0 -- an
+    #: AMC-RH-style *full* exit to L0 (exit_policy="amc_rh", safe -- see
+    #: safety_proof.md) would have admitted this job instead. The remainder,
+    #: `overdegraded_jne - overdegraded_jne_full_exit`, needed a *partial*
+    #: demotion to an intermediate level (0 < natural_level < state.level) --
+    #: only possible for k > 2, and only safe if a real cascade-exit
+    #: mechanism is built and proven; not implemented, so this is a
+    #: diagnostic-only estimate of what such a mechanism could additionally
+    #: recover on top of full exit alone.
+    overdegraded_jne_full_exit: int = 0
 
     @property
     def total_hi_releases(self) -> int:
