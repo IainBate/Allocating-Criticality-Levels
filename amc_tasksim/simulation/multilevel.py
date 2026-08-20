@@ -402,6 +402,14 @@ class MultiLevelResult:
     overdegraded_level_ticks: int = 0
     overdegraded_events: int = 0
     max_overdegraded_gap: int = 0
+    #: Of `jne`, the count abandoned on release while state.level > natural_level
+    #: -- i.e. LO jobs dropped after the evidence that justified the current
+    #: level had already gone stale. Unlike the *_ticks/pct diagnostics above,
+    #: this is not confounded by legitimate backlog-drain time: a busy queue
+    #: draining after its triggering job left is not itself a cost, but a job
+    #: dropped *during* that tail is a real, countable instance of exactly the
+    #: service loss a smarter exit rule could plausibly have avoided.
+    overdegraded_jne: int = 0
 
     @property
     def total_hi_releases(self) -> int:
