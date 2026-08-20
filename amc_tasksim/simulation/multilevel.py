@@ -446,6 +446,14 @@ class MultiLevelResult:
         depth = sum(x * t for x, t in enumerate(self.level_ticks))
         return 100.0 * self.overdegraded_level_ticks / depth if depth else 0.0
 
+    @property
+    def overdegraded_jne_pct(self) -> float:
+        """`overdegraded_jne` as a % of `lo_expected` -- directly comparable to
+        `jne_pct` and `jnc_pct`, since it is a subset of the same `jne` count.
+        """
+        exp = self.lo_expected
+        return 100.0 * self.overdegraded_jne / exp if exp else 0.0
+
 
 def _natural_level(
     ladder: SeverityLadder,
