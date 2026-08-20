@@ -89,12 +89,21 @@ The primary research plan that outlines the entire project structure:
 
 | File | Description |
 |------|-------------|
-| `implementation_validation_plan.md` | **Phase 5 plan** - Protocol interface extension, validation tests, experiment framework |
+| `implementation_validation_plan.md` | **Phase 5 plan** - Protocol interface extension, validation tests, experiment framework. Written as pseudocode before the engine existed; the actual implementation is in `amc_tasksim/`, below |
 
-**Key components**:
-- Extended `MultiLevelProtocol` interface with k-level support
-- Correctness, monotonicity, and consistency test suites
-- Sweep framework for experiments across utilisation levels
+**Status**:
+- **Task 5.1 (core k-level engine): built and tested**, not merely planned —
+  `amc_tasksim/simulation/multilevel.py` and `amc_tasksim/experiments/multilevel_protocol.py`,
+  with tests in `tests/simulation/test_multilevel.py` and `tests/experiments/test_multilevel_protocol.py`.
+- **Task 5.3 (experiment/sweep framework): built and used**, not just specified —
+  `amc_tasksim/experiments/contract.py` (paired evaluation, `required_pairs()`) and
+  `sweep.py` ran all four stages of the revised protocol
+  (`../research/mode_optimization.tex` §"Stage Results").
+- **Task 5.2 (validation suite): partially covered.** `tests/simulation/test_validation.py`
+  checks the engine against the AMC-RH paper scenario directly; it has not been confirmed
+  against every specific check the original plan lists (k=2 reproduces AMC-RH exactly,
+  monotonic JNE across k=2..5, edge cases at k=1 and very large k) — worth a pass to
+  confirm coverage rather than assuming it from the file's existence.
 
 ---
 
